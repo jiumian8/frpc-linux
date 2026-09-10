@@ -473,11 +473,16 @@ EOF
 
 compile_ui() {
     log "编译 Web UI"
-    mkdir -p "${APP_ROOT}/build"
+    mkdir -p "${APP_ROOT}/build" "${UI_ROOT}"
+    setup_go_env
     install -m 0644 "${MAIN_GO}" "${APP_ROOT}/build/main.go"
     install -m 0644 "${GO_MOD}" "${APP_ROOT}/build/go.mod"
     (
         cd "${APP_ROOT}/build"
+        export HOME="${HOME:-/root}"
+        export GOCACHE="${GOCACHE}"
+        export GOPATH="${GOPATH}"
+        export GOTMPDIR="${GOTMPDIR}"
         export CGO_ENABLED=0
         export GO111MODULE=on
         export GOPROXY=off
@@ -774,6 +779,12 @@ ACTION}" in
     1|install) shift || true; do_install "$@" ;;
     2|uninstall|remove) shift || true; do_uninstall "$@" ;;
     3|update|check-update) shift || true; do_update "$@" ;;
+    *) usage; die "未知参数: ${ACTION}" ;;
+esac
+hift || true; do_update "$@" ;;
+    *) usage; die "未知参数: ${ACTION}" ;;
+esac
+hift || true; do_update "$@" ;;
     *) usage; die "未知参数: ${ACTION}" ;;
 esac
 hift || true; do_update "$@" ;;

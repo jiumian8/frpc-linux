@@ -1,0 +1,2281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>frpc客户端</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #eef4ff;
+            --bg2: #dce8ff;
+            --surface: rgba(255,255,255,0.68);
+            --surface2: rgba(255,255,255,0.42);
+            --border: rgba(255,255,255,0.34);
+            --text: #1e293b;
+            --muted: #64748b;
+            --primary: #6366f1;
+            --primary2: #8b5cf6;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --tcp: #3b82f6;
+            --udp: #8b5cf6;
+            --http: #10b981;
+            --https: #f59e0b;
+            --stcp: #ec4899;
+            --xtcp: #06b6d4;
+            --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --glass-blur: blur(24px);
+            --glass-shadow: 0 22px 54px rgba(15,23,42,0.14);
+            --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.72);
+        }
+        body.dark {
+            --bg: #020617;
+            --bg2: #0f172a;
+            --surface: rgba(15,23,42,0.72);
+            --surface2: rgba(30,41,59,0.58);
+            --border: rgba(255,255,255,0.12);
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --glass-shadow: 0 26px 56px rgba(0,0,0,0.34);
+            --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        body {
+            font-family: var(--font-sans);
+            background:
+                radial-gradient(circle at top left, rgba(99,102,241,0.28), transparent 28%),
+                radial-gradient(circle at top right, rgba(96,165,250,0.24), transparent 24%),
+                radial-gradient(circle at bottom left, rgba(168,85,247,0.2), transparent 24%),
+                radial-gradient(circle at center right, rgba(255,255,255,0.55), transparent 32%),
+                linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+            color: var(--text);
+            min-height: 100vh;
+            height: 100vh;
+            padding: 12px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        body::before, body::after {
+            content: "";
+            position: fixed;
+            border-radius: 999px;
+            filter: blur(10px);
+            opacity: 0.55;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::before {
+            width: 360px;
+            height: 360px;
+            top: -90px;
+            left: -80px;
+            background: rgba(99,102,241,0.24);
+        }
+        body::after {
+            width: 320px;
+            height: 320px;
+            right: -70px;
+            bottom: 20px;
+            background: rgba(96,165,250,0.18);
+        }
+        input, select, textarea, button { font: inherit; }
+        .container { margin: 0 auto; position: relative; z-index: 1; height: calc(100vh - 24px); display: flex; flex-direction: column; min-height: 0; gap: 10px; }
+        .header { margin-bottom: 0; padding: 0; background: transparent; border: none; backdrop-filter: none; flex: 0 0 auto; }
+        .instance-panel {
+            padding: 5px 14px;
+            border-radius: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: var(--glass-shadow), var(--glass-highlight);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+        }
+        body.dark .instance-panel { background: var(--surface); border-color: var(--border); box-shadow: var(--glass-shadow), var(--glass-highlight); }
+        .instance-panel-head { display: grid; grid-template-columns: 120px minmax(0, 1fr) 200px; align-items: start; gap: 12px; }
+        .instance-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+        .instance-toolbar .btn { width: 100%; min-height: 40px; font-size: 13px; justify-content: center; }
+        .instance-current { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; min-width: 0; }
+        .instance-current-main { display: flex; flex-direction: column; gap: 8px; min-width: 180px; flex: 1 1 auto; padding: 0; }
+        .instance-current-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .instance-name-row { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+        .instance-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+        .instance-current-name { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--font-sans); line-height: 1.2; }
+        .icon-btn { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface2); color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; padding: 0; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .icon-btn:hover { color: var(--primary); border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.08); transform: translateY(-1px); }
+        .icon-btn svg { width: 14px; height: 14px; }
+        .instance-current-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-family: var(--font-sans); }
+        .instance-id { font-family: var(--font-sans); background: rgba(255,255,255,0.24); border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; padding: 3px 10px; font-size: 12px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .instance-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1px solid var(--border); background: rgba(255,255,255,0.22); color: var(--text); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .instance-badge.disabled { color: #b91c1c; background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.18); }
+        .instance-badge.enabled { color: #166534; background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.18); }
+        .instance-status-card { display: flex; flex-direction: column; justify-content: center; gap: 7px; min-width: 180px; padding: 10px 13px; border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,0.28); align-self: start; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.36); }
+        body.dark .instance-status-card { background: rgba(15,23,42,0.42); }
+        .instance-status-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+        .instance-status-row { display: flex; align-items: center; gap: 8px; }
+        .instance-status-text { font-size: 13px; font-weight: 700; color: var(--text); }
+        .instance-status-text.success { color: #166534; }
+        .instance-status-text.warning { color: #b45309; }
+        .instance-status-text.error { color: #b91c1c; }
+        .instance-status-text.offline { color: var(--muted); }
+        .instance-inline-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .btn-inline-toggle { min-height: 34px; padding: 6px 14px; border-radius: 999px; font-size: 12px; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+        .btn-inline-delete { min-height: 32px; padding: 6px 12px; border-radius: 999px; font-size: 12px; box-shadow: 0 4px 12px rgba(239,68,68,0.18); display: inline-flex; align-items: center; gap: 6px; }
+        .btn-inline-delete svg { width: 13px; height: 13px; flex-shrink: 0; }
+        .instance-switcher { display: grid; gap: 8px; }
+        .instance-chip { min-width: 148px; padding: 11px 13px; border-radius: 16px; border: 1px solid var(--border); background: rgba(255,255,255,0.32); color: var(--text); cursor: pointer; text-align: left; transition: all 0.2s; box-shadow: 0 12px 26px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.36); font-family: var(--font-sans); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+        .instance-chip:hover { transform: translateY(-1px); border-color: rgba(99,102,241,0.4); }
+        .instance-chip.active { border-color: rgba(99,102,241,0.5); background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.08)); box-shadow: 0 10px 24px rgba(99,102,241,0.14); }
+        .instance-chip-name { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin-bottom: 5px; font-family: var(--font-sans); }
+        .instance-chip-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-family: var(--font-sans); }
+        .instance-chip-id { font-family: var(--font-sans); }
+        .instance-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--success); display: inline-block; }
+        .instance-dot.disabled { background: var(--danger); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: all 0.3s; flex-shrink: 0; }
+        .dot.success { background: var(--success); box-shadow: 0 0 8px var(--success), 0 0 16px rgba(34,197,94,0.3); }
+        .dot.warning { background: var(--warning); box-shadow: 0 0 8px rgba(245,158,11,0.45); }
+        .dot.error { background: var(--danger); box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+        .dot.offline { background: var(--muted); }
+        .main { background: var(--surface); border-radius: 24px; border: 1px solid var(--border); overflow: hidden; box-shadow: var(--glass-shadow), var(--glass-highlight); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .tabs { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.16); border-bottom: 1px solid var(--border); padding: 6px 8px; overflow-x: auto; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab { padding: 9px 14px; cursor: pointer; border: 1px solid transparent; color: var(--muted); font-size: 12px; font-weight: 600; transition: all 0.2s; white-space: nowrap; border-radius: 12px; background: transparent; }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.16); }
+        .tab.active { color: var(--text); border-color: rgba(99,102,241,0.18); background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(232,238,255,0.88)); box-shadow: 0 6px 16px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.55); }
+        body.dark .tab:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+        body.dark .tab.active { color: #f8fafc; border-color: rgba(129,140,248,0.26); background: linear-gradient(180deg, rgba(51,65,85,0.82), rgba(79,70,229,0.34)); box-shadow: 0 8px 18px rgba(79,70,229,0.16), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .content { display: none; padding: 11px; min-height: 0; overflow: hidden; }
+        .content.active { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow: hidden; }
+        .content.active > .section { margin-bottom: 0; }
+        #content-proxies.active, #content-list.active, #content-config.active { height: 100%; }
+        #content-server.active { overflow: auto; padding-right: 8px; }
+        #content-proxies .section:last-child, #content-list .section, #content-config .section, #content-log .section { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .section { margin-bottom: 18px; min-height: 0; }
+        .section:last-child { margin-bottom: 0; }
+        .section-title { font-size: 11px; font-weight: 700; margin-bottom: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .form-row.full { grid-template-columns: 1fr; }
+        .field { margin-bottom: 10px; }
+        .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .field input, .field select { width: 100%; padding: 8px 10px; background: rgba(255,255,255,0.36); border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-size: 12px; transition: all 0.2s; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.32), 0 1px 2px rgba(15,23,42,0.04); }
+        .field input:focus, .field select:focus { outline: none; border-color: rgba(99,102,241,0.4); box-shadow: 0 0 0 4px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.4); }
+        .btn { padding: 8px 14px; border: none; border-radius: 12px; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-pri { background: linear-gradient(180deg, rgba(255,255,255,0.28), var(--primary) 24%, var(--primary2)); color: white; box-shadow: 0 10px 22px rgba(99,102,241,0.24), inset 0 1px 0 rgba(255,255,255,0.32); }
+        .btn-pri:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.36); }
+        .btn-save { background: rgba(255,255,255,0.32); color: var(--text); border: 1px solid var(--border); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 18px rgba(15,23,42,0.08); }
+        .btn-save:hover { background: rgba(255,255,255,0.42); border-color: rgba(99,102,241,0.24); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.46), 0 12px 24px rgba(15,23,42,0.1); }
+        body.dark .btn-save { background: rgba(30,41,59,0.72); color: #f8fafc; border-color: rgba(255,255,255,0.12); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 24px rgba(0,0,0,0.24); }
+        body.dark .btn-save:hover { background: rgba(51,65,85,0.82); border-color: rgba(129,140,248,0.24); box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 14px 28px rgba(0,0,0,0.28); }
+        .btn-suc { background: linear-gradient(135deg, rgba(34,197,94,0.92), rgba(22,163,74,0.86)); color: white; box-shadow: 0 10px 20px rgba(34,197,94,0.18); }
+        .btn-suc:hover { background: #16a34a; }
+        .btn-dan { background: linear-gradient(135deg, rgba(239,68,68,0.92), rgba(220,38,38,0.86)); color: white; box-shadow: 0 10px 20px rgba(239,68,68,0.18); }
+        .btn-dan:hover { background: #dc2626; }
+        .btn-ghost { background: rgba(255,255,255,0.28); color: var(--text); border: 1px solid var(--border); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.34); }
+        .btn-ghost:hover { background: rgba(255,255,255,0.36); }
+        .btn-sm { padding: 5px 10px; font-size: 10px; }
+        .btn-full { width: 100%; }
+        .domain-tabs { display: flex; gap: 0; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: rgba(255,255,255,0.18); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .domain-tab { flex: 1; padding: 6px 10px; text-align: center; cursor: pointer; font-size: 11px; font-weight: 600; background: transparent; color: var(--muted); transition: all 0.2s; }
+        .domain-tab:hover { color: var(--text); }
+        .domain-tab.active { background: var(--primary); color: white; }
+        body.dark .domain-tab.active { background: rgba(99,102,241,0.2); color: var(--primary); }
+        .domain-content { display: none; }
+        .domain-content.active { display: block; }
+        .domain-tip { font-size: 11px; color: var(--muted); margin-top: 4px; }
+        .domain-tip a { color: var(--primary); text-decoration: none; }
+        .domain-tip a:hover { text-decoration: underline; }
+        .proxy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 2px; }
+        .proxy-btn { background: rgba(255,255,255,0.28); border: 1px solid var(--border); border-radius: 16px; padding: 11px 12px; cursor: pointer; text-align: center; transition: all 0.2s; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; min-height: 76px; }
+        .proxy-btn:hover { border-color: var(--primary); transform: translateY(-1px); background: rgba(99,102,241,0.06); }
+        .proxy-btn-top { display: flex; align-items: center; justify-content: center; gap: 2px; }
+        .proxy-btn .icon { display: inline-flex; align-items: center; justify-content: center; margin-bottom: 0; width: 22px; height: 22px; }
+        .proxy-btn .icon svg { width: 22px; height: 22px; }
+        .proxy-btn .name { font-size: 12px; font-weight: 700; line-height: 1; }
+        .proxy-btn .desc { font-size: 10px; color: var(--muted); padding-left: 0; text-align: center; }
+        .content-card { background: rgba(255,255,255,0.24); border: 1px solid var(--border); border-radius: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.28); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); min-height: 0; }
+        .proxy-list { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; padding: 8px; overflow-y: auto; overscroll-behavior: contain; }
+        .proxy-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.28); border: 1px solid var(--border); border-radius: 14px; transition: all 0.2s; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.28); }
+        .proxy-item:hover { border-color: var(--primary); background: rgba(99,102,241,0.04); }
+        .proxy-info { flex: 1; display: flex; align-items: center; gap: 10px; }
+        .proxy-info-left { display: flex; align-items: center; gap: 8px; }
+        .proxy-badge { padding: 3px 7px; border-radius: 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; color: white; letter-spacing: 0.3px; }
+        .proxy-badge.tcp { background: var(--tcp); }
+        .proxy-badge.udp { background: var(--udp); }
+        .proxy-badge.http { background: var(--http); }
+        .proxy-badge.https { background: var(--https); }
+        .proxy-badge.stcp { background: var(--stcp); }
+        .proxy-badge.xtcp { background: var(--xtcp); }
+        .proxy-name { font-size: 12px; font-weight: 700; }
+        .proxy-ports { font-size: 10px; color: var(--muted); }
+        .proxy-actions { display: flex; gap: 6px; align-items: center; }
+        .empty { text-align: center; padding: 24px; color: var(--muted); font-size: 12px; }
+        .config-preview { background: rgba(255,255,255,0.26); border-radius: 16px; padding: 14px; font-family: var(--font-sans); font-size: 11px; line-height: 1.5; color: var(--text); border: 1px solid var(--border); white-space: pre-wrap; flex: 1; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3); }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .modal-overlay.show { display: flex; }
+        .modal { background: var(--surface); border-radius: 24px; width: min(92vw, 880px); max-width: calc(1000px - 24px); max-height: calc(100vh - 24px); border: 1px solid var(--border); box-shadow: var(--glass-shadow), var(--glass-highlight); display: flex; flex-direction: column; min-height: 0; backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px); }
+        .modal.config-modal { width: min(92vw, 860px); max-width: calc(1000px - 24px); max-height: calc(100vh - 24px); }
+        .modal-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .modal-head h3 { font-size: 14px; font-weight: 700; }
+        .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; transition: color 0.2s; }
+        .modal-close:hover { color: var(--text); }
+        .modal-body { padding: 14px; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+        .modal-foot { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; }
+        .a-right { text-align: right; margin-top: 10px; flex: 0 0 auto; }
+        .table-container { flex: 1; min-height: 0; padding: 2px 10px 10px; overflow: auto; overscroll-behavior: contain; }
+        .proxy-table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        .proxy-table th, .proxy-table td { padding: 6px 8px; text-align: left; font-size: 11px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        .proxy-table th { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+        .proxy-table tr:hover { background: var(--surface2); }
+        .delay-cell { min-width: 50px; text-align: center; }
+        .delay-value { display: inline-block; min-width: 35px; text-align: center; }
+        .delay-value.success { color: var(--success); }
+        .delay-value.error { color: var(--danger); }
+        .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px 20px; box-shadow: var(--glass-shadow), var(--glass-highlight); z-index: 2000; opacity: 0; transition: all 0.3s ease; display: flex; align-items: center; gap: 10px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .toast-icon.success { background: var(--success); color: white; }
+        .toast-icon.error { background: var(--danger); color: white; }
+        .toast-message { font-size: 13px; font-weight: 500; }
+        .theme-toggle { cursor: pointer; padding: 6px; border-radius: 12px; background: rgba(255,255,255,0.28); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; transition: all 0.2s; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3); }
+        .theme-toggle:hover { background: rgba(255,255,255,0.38); }
+        .theme-toggle svg { width: 18px; height: 18px; }
+        .domain-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size: 11px; }
+        .domain-link:hover { color: #4f46e5; }
+        .confirm-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .confirm-overlay.show { display: flex; }
+        .confirm-dialog { background: var(--surface); border-radius: 22px; width: 85%; max-width: 340px; padding: 20px; border: 1px solid var(--border); box-shadow: var(--glass-shadow), var(--glass-highlight); text-align: center; backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px); }
+        .confirm-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+        .confirm-message { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+        .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+        .confirm-actions .btn { min-width: 80px; }
+        .instance-modal-hint { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+        #logPreview { flex: 1; min-height: 0; border-radius: 16px !important; overflow-y: auto; overscroll-behavior: contain; }
+        .proxy-list::-webkit-scrollbar, .table-container::-webkit-scrollbar, .config-preview::-webkit-scrollbar, .modal-body::-webkit-scrollbar, #content-server.active::-webkit-scrollbar, #logPreview::-webkit-scrollbar { width: 8px; height: 8px; }
+        .proxy-list::-webkit-scrollbar-thumb, .table-container::-webkit-scrollbar-thumb, .config-preview::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb, #content-server.active::-webkit-scrollbar-thumb, #logPreview::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.35); border-radius: 999px; }
+        .proxy-list::-webkit-scrollbar-track, .table-container::-webkit-scrollbar-track, .config-preview::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track, #content-server.active::-webkit-scrollbar-track, #logPreview::-webkit-scrollbar-track { background: transparent; }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { height: calc(100vh - 20px); }
+            .header { padding: 0; }
+            .instance-chip { min-width: 124px; }
+            .instance-panel-head { grid-template-columns: 1fr; }
+            .instance-current { flex-direction: column; }
+            .instance-toolbar { flex-direction: row; }
+            .instance-toolbar .btn { width: auto; min-width: 100px; }
+            .instance-current-main { gap: 10px; }
+            .instance-inline-actions { width: 100%; }
+            .btn-inline-toggle, .btn-inline-delete { flex: 0 0 auto; }
+            .form-row { grid-template-columns: 1fr; gap: 8px; }
+            .form-row.three { grid-template-columns: 1fr 1fr; }
+            .proxy-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .proxy-btn { min-height: 70px; padding: 10px; }
+            .tabs { gap: 4px; padding: 4px 4px; }
+            .tab { padding: 8px 10px; font-size: 11px; border-radius: 10px; }
+            .content { padding: 11px; }
+            .proxy-table { font-size: 10px; }
+            .proxy-table th, .proxy-table td { padding: 5px 6px; }
+            .modal { width: 95%; max-height: calc(100vh - 20px); }
+            .confirm-dialog { max-width: 90%; }
+            .toast { width: 90%; max-width: 90%; left: 5%; transform: translateY(-100px); }
+            .toast.show { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="instance-panel">
+                <div class="instance-panel-head">
+                    <div class="instance-toolbar">
+                        <button class="btn btn-ghost btn-sm" onclick="openSwitchInstanceModal()">🔄 切换配置</button>
+                        <button class="btn btn-ghost btn-sm" onclick="openCreateInstanceModal()">➕️ 新建配置</button>
+                    </div>
+                    <div class="instance-current">
+                        <div class="instance-current-main">
+                            <span class="instance-label">当前配置</span>
+                            <div class="instance-current-top">
+                                <span class="instance-name-row">
+                                    <span class="instance-current-name" id="instanceCurrentName">default</span>
+                                    <button type="button" class="icon-btn" id="renameInstanceIconBtn" onclick="openRenameInstanceModal()" title="重命名配置" aria-label="重命名配置">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                                        </svg>
+                                    </button>
+                                </span>
+                                <span class="instance-badge enabled" id="instanceState">已启用</span>
+                                <span class="instance-inline-actions">
+                                    <button class="btn btn-dan btn-inline-toggle" id="headerToggleInstanceBtn" onclick="toggleCurrentInstanceEnabled()" style="display: none;">禁用配置</button>
+                                    <button class="btn btn-dan btn-inline-delete" id="headerDeleteInstanceBtn" onclick="deleteCurrentInstance()" style="display: none;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                        </svg>
+                                        <span>删除配置</span>
+                                    </button>
+                                </span>
+                            </div>
+                            <div class="instance-current-meta">
+                                <span class="instance-id" id="instanceCurrentId">ID: default</span>
+                                <span id="instanceCurrentType">默认配置</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="instance-status-card">
+                        <span class="instance-status-label">连接状态</span>
+                        <div class="instance-status-row">
+                            <div class="dot offline" id="instanceConnectionDot"></div>
+                            <span class="instance-status-text offline" id="instanceConnectionText">检测中</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="tabs">
+                <div class="tab active" onclick="tab(this, 'server')">服务器</div>
+                <div class="tab" onclick="tab(this, 'proxies')">添加代理</div>
+                <div class="tab" onclick="tab(this, 'list')">代理列表</div>
+                <div class="tab" onclick="tab(this, 'config')">配置文件</div>
+                <div class="tab" onclick="tab(this, 'log')">日志</div>
+                <div class="tab" onclick="toggleTheme()" style="margin-left: auto;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="content active" id="content-server">
+                <div class="section">
+                    <div class="section-title">服务器连接</div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>服务器地址</label>
+                            <input type="text" id="serverAddr" placeholder="例如: frp.example.com">
+                        </div>
+                        <div class="field">
+                            <label>端口</label>
+                            <input type="number" id="serverPort" placeholder="7000">
+                        </div>
+                        <div class="field">
+                            <label>协议</label>
+                            <select id="protocol">
+                                <option value="tcp">TCP</option>
+                                <option value="quic">QUIC</option>
+                                <option value="kcp">KCP</option>
+                                <option value="websocket">WebSocket</option>
+                                <option value="wss">WSS (WebSocket Secure)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>认证令牌 (可选)</label>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="password" id="authToken" placeholder="留空则不使用认证" style="flex: 1;">
+                                <button type="button" class="btn btn-ghost btn-sm" id="toggleAuthToken" onclick="toggleAuthTokenVisibility()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>STUN 服务器 (用于P2P/XTCP穿透，可选)</label>
+                            <input type="text" id="natHoleStunServer" placeholder="留空使用默认: stun.easyvoip.com:3478">
+                        </div>
+                        <div class="field">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="wireProtocolEnabled" style="width: auto;" onchange="toggleWireProtocolControls()">
+                                启用线路协议
+                            </label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="wireProtocol">
+                                    <option value="v1">v1</option>
+                                    <option value="v2">v2</option>
+                                </select>
+                            </div>
+                            <div class="domain-tip">默认v1旧协议，v2新协议，使用v2请把Frps服务端升级到最新版 </div>
+                        </div>
+                    </div>
+                    <div class="section">
+                        <div class="section-title">高级传输配置</div>
+                        <div class="form-row">
+                            <div class="field">
+                                <label style="display: flex; align-items: center; gap: 6px;">
+                                    <input type="checkbox" id="tcpMux" style="width: auto;">
+                                    TCP 多路复用 (tcpMux)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="field">
+                                <label>心跳间隔 (秒)</label>
+                                <input type="number" id="heartbeatInterval" placeholder="30" min="1">
+                            </div>
+                            <div class="field">
+                                <label>心跳超时 (秒)</label>
+                                <input type="number" id="heartbeatTimeout" placeholder="90" min="1">
+                            </div>
+                            <div class="field">
+                                <label>TCP Mux 保活间隔 (秒)</label>
+                                <input type="number" id="tcpMuxKeepaliveInterval" placeholder="30" min="1">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="a-right" id="saveBasicContainer">
+                    <button class="btn btn-save" id="saveBasicBtn" onclick="saveConfig()">保存并重启</button>
+                </div>
+            </div>
+
+            <div class="content" id="content-proxies">
+                <div class="section">
+                    <div class="section-title">快速添加代理</div>
+                    <div class="proxy-grid">
+                        <div class="proxy-btn" onclick="openAdd('tcp')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="9 18 15 12 9 6"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="name">TCP</div>
+                            </div>
+                            <div class="desc">端口转发</div>
+                        </div>
+                        <div class="proxy-btn" onclick="openAdd('udp')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"></path>
+                                    </svg>
+                                </div>
+                                <div class="name">UDP</div>
+                            </div>
+                            <div class="desc">端口转发</div>
+                        </div>
+                        <div class="proxy-btn" onclick="openAdd('http')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                    </svg>
+                                </div>
+                                <div class="name">HTTP</div>
+                            </div>
+                            <div class="desc">网页服务</div>
+                        </div>
+                        <div class="proxy-btn" onclick="openAdd('https')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                        <path d="M9 12l2 2 4-4"></path>
+                                    </svg>
+                                </div>
+                                <div class="name">HTTPS</div>
+                            </div>
+                            <div class="desc">加密网页</div>
+                        </div>
+                        <div class="proxy-btn" onclick="openAdd('stcp')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                </div>
+                                <div class="name">STCP</div>
+                            </div>
+                            <div class="desc">安全隧道</div>
+                        </div>
+                        <div class="proxy-btn" onclick="openAdd('xtcp')">
+                            <div class="proxy-btn-top">
+                                <div class="icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="18" cy="5" r="3"></circle>
+                                        <circle cx="6" cy="12" r="3"></circle>
+                                        <circle cx="18" cy="19" r="3"></circle>
+                                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                                    </svg>
+                                </div>
+                                <div class="name">P2P</div>
+                            </div>
+                            <div class="desc">点对点</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">已配置代理</div>
+                    <div class="proxy-list content-card" id="proxyList">
+                        <div class="empty">暂无代理配置，点击上方按钮添加</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content" id="content-list">
+                <div class="section">
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>代理列表</span>
+                        <button class="btn btn-suc btn-sm" onclick="pingAll()">全部 Ping</button>
+                    </div>
+                    <div class="table-container content-card">
+                        <table class="proxy-table" id="proxyTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 70px;">类型</th>
+                                    <th>名称</th>
+                                    <th style="width: 120px;">本地端口</th>
+                                    <th style="width: 90px;">远程端口</th>
+                                    <th>域名</th>
+                                    <th style="width: 70px;">延迟</th>
+                                    <th style="width: 60px;">Ping</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="proxyTableBody">
+                                <tr><td colspan="8" style="text-align: center; color: var(--muted);">暂无代理</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content" id="content-config">
+                <div class="section">
+                    <div class="section-title">配置文件预览 (高级配置页面)</div>
+                    <div class="config-preview" id="configPreview">加载中...</div>
+                </div>
+
+                <div class="a-right">
+                    <button class="btn btn-pri" onclick="openConfigEditor()">完整编辑</button>
+                </div>
+            </div>
+
+            <div class="content" id="content-log">
+                <div class="section">
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span>运行日志 (展示最新500条)</span>
+                        <button class="btn btn-ghost btn-sm" onclick="clearLogs()">清空</button>
+                    </div>
+                    <div id="logPreview" class="content-card" style="background: var(--surface2); border: 1px solid var(--border); padding: 12px; font-family: var(--font-sans); font-size: 11px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <div class="modal-head">
+                <h3 id="modalTitle">添加代理</h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+                <button class="btn btn-pri" id="modalConfirmBtn" onclick="addProxy()">添加并应用</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="configModal">
+        <div class="modal config-modal">
+            <div class="modal-head">
+                <h3>完整配置编辑</h3>
+                <button class="modal-close" onclick="closeConfigEditor()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--muted); font-size: 12px; margin-bottom: 10px; line-height: 1.5;">
+                    - 如需手动修改配置文件，请认真配置，frpc 对配置文件依赖很高，不能有任何错误<br>
+                    - 如配置错误，请编辑 /var/apps/frpc/shares/frpc/对应实例/frpc.toml
+                </p>
+                <textarea id="configEditor" class="config-preview" style="width: 100%; min-height: 340px; resize: vertical;"></textarea>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeConfigEditor()">取消</button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button class="btn btn-save" id="saveRawBtn" onclick="saveConfigRaw()">保存并重启</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <div class="toast-icon" id="toastIcon"></div>
+        <div class="toast-message" id="toastMessage"></div>
+    </div>
+
+    <div class="confirm-overlay" id="confirmOverlay">
+        <div class="confirm-dialog">
+            <div class="confirm-title" id="confirmTitle">请确认</div>
+            <div class="confirm-message" id="confirmMessage">确定要继续吗？</div>
+            <div class="confirm-actions">
+                <button class="btn btn-ghost" onclick="closeConfirm()">取消</button>
+                <button class="btn btn-pri" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="instanceModalOverlay">
+        <div class="modal" style="max-width: 420px;">
+            <div class="modal-head">
+                <h3>新建配置</h3>
+                <button class="modal-close" onclick="closeCreateInstanceModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="instance-modal-hint">请输入配置名称，仅支持英文、数字、中划线和下划线。创建后会在第一次保存时生成独立配置文件。</p>
+                <div class="field" style="margin-bottom: 0;">
+                    <label>配置名称</label>
+                    <input type="text" id="instanceNameInput" placeholder="例如: office-a" onkeydown="handleInstanceNameKeydown(event)">
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeCreateInstanceModal()">取消</button>
+                <button class="btn btn-pri" onclick="submitCreateInstance()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="renameInstanceModalOverlay">
+        <div class="modal" style="max-width: 440px;">
+            <div class="modal-head">
+                <h3>重命名配置</h3>
+                <button class="modal-close" onclick="closeRenameInstanceModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="instance-modal-hint">
+                    这里只修改配置显示名称，方便区分用途。<br>
+                    实际配置 ID、目录名称、配置文件路径和日志路径都不会修改。
+                </p>
+                <div class="field" style="margin-bottom: 0;">
+                    <label>显示名称</label>
+                    <input type="text" id="renameInstanceInput" placeholder="例如: 办公室代理" onkeydown="handleRenameInstanceKeydown(event)">
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeRenameInstanceModal()">取消</button>
+                <button class="btn btn-pri" onclick="submitRenameInstance()">保存名称</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="switchInstanceModalOverlay">
+        <div class="modal" style="max-width: 520px;">
+            <div class="modal-head">
+                <h3>切换配置</h3>
+                <button class="modal-close" onclick="closeSwitchInstanceModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="instance-modal-hint">选择要查看和编辑的配置。连接状态会随当前配置同步刷新。</p>
+                <div class="instance-switcher" id="instanceSwitcher"></div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeSwitchInstanceModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="instanceManageModalOverlay">
+        <div class="modal" style="max-width: 420px;">
+            <div class="modal-head">
+                <h3>配置管理</h3>
+                <button class="modal-close" onclick="closeInstanceManageModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="instance-modal-hint">管理当前配置的显示名称、启用状态和删除操作。</p>
+                <div style="display: grid; gap: 10px;">
+                    <button class="btn btn-ghost btn-full" onclick="handleManageRename()">重命名配置</button>
+                    <button class="btn btn-ghost btn-full" id="toggleInstanceBtn" onclick="handleManageToggle()" style="display: none;">禁用配置</button>
+                    <button class="btn btn-dan btn-full" id="deleteInstanceBtn" onclick="handleManageDelete()" style="display: none;">删除配置</button>
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn btn-ghost" onclick="closeInstanceManageModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let curTab = 'server';
+        let proxies = [];
+        let editingIndex = -1;
+        let pendingDeleteIndex = -1;
+        let authTokenVisible = false;
+        let instances = [];
+        let currentInstanceId = 'default';
+        let manualSaveCooldownUntil = 0;
+        let manualSaveCooldownTimer = null;
+        let runtimeLoadingUntil = 0;
+        let toggleCooldownUntil = 0;
+        let toggleCooldownTimer = null;
+        let toggleActionPending = false;
+        let instanceDeletePending = false;
+        let saveActionPending = false;
+        let instancesLoaded = false;
+
+        function actionUrl(action, extra = {}) {
+            const params = new URLSearchParams({ action, ...extra });
+            return '?' + params.toString();
+        }
+
+        function instancePayload(extra = {}) {
+            return { instanceId: currentInstanceId, ...extra };
+        }
+
+        function getCurrentInstance() {
+            return instances.find(x => x.id === currentInstanceId) || {
+                id: currentInstanceId,
+                name: currentInstanceId,
+                enabled: true,
+                hasConfig: true,
+                isDefault: currentInstanceId === 'default'
+            };
+        }
+
+        function isCurrentInstanceEnabled() {
+            return getCurrentInstance().enabled !== false;
+        }
+
+        function shouldShowCurrentInstanceToggle() {
+            if (!instancesLoaded) {
+                return false;
+            }
+            const current = getCurrentInstance();
+            if (current.hasConfig === false) {
+                return false;
+            }
+            return !(instances.length === 1 && current.isDefault && current.enabled !== false);
+        }
+
+        function shouldShowCurrentInstanceDelete() {
+            if (!instancesLoaded) {
+                return false;
+            }
+            return !getCurrentInstance().isDefault;
+        }
+
+        function getInstanceDisplayState(instance) {
+            if (!instance || instance.hasConfig === false) {
+                return {
+                    typeText: instance && instance.isDefault ? '默认配置 / 未创建配置文件' : '独立配置 / 未创建配置文件',
+                    badgeText: '未创建配置文件',
+                    badgeClass: 'instance-badge disabled',
+                    switcherText: '未创建配置文件',
+                    switcherDotClass: 'instance-dot disabled'
+                };
+            }
+            if (instance.enabled === false) {
+                return {
+                    typeText: instance.isDefault ? '默认配置 / 已保存未启用' : '独立配置 / 已保存未启用',
+                    badgeText: '已保存未启用',
+                    badgeClass: 'instance-badge disabled',
+                    switcherText: '已保存未启用',
+                    switcherDotClass: 'instance-dot disabled'
+                };
+            }
+            return {
+                typeText: instance.isDefault ? '默认配置 / 已启用' : '独立配置 / 已启用',
+                badgeText: '已启用',
+                badgeClass: 'instance-badge enabled',
+                switcherText: '已启用',
+                switcherDotClass: 'instance-dot'
+            };
+        }
+
+        function getManualSaveButtonLabel() {
+            return isCurrentInstanceEnabled() ? '保存并重启' : '保存配置';
+        }
+
+        function getManualSaveCooldownRemaining() {
+            return Math.max(0, Math.ceil((manualSaveCooldownUntil - Date.now()) / 1000));
+        }
+
+        function getRuntimeLoadingRemaining() {
+            return Math.max(0, Math.ceil((runtimeLoadingUntil - Date.now()) / 1000));
+        }
+
+        function getToggleCooldownRemaining() {
+            return Math.max(0, Math.ceil((toggleCooldownUntil - Date.now()) / 1000));
+        }
+
+        function getSaveLockState() {
+            const manualRemaining = getManualSaveCooldownRemaining();
+            const toggleRemaining = getToggleCooldownRemaining();
+            const runtimeRemaining = getRuntimeLoadingRemaining();
+            if (manualRemaining >= runtimeRemaining && manualRemaining >= toggleRemaining && manualRemaining > 0) {
+                return { remaining: manualRemaining, reason: 'manual' };
+            }
+            if (toggleRemaining >= runtimeRemaining && toggleRemaining > 0) {
+                return { remaining: toggleRemaining, reason: 'toggle' };
+            }
+            if (runtimeRemaining > 0) {
+                return { remaining: runtimeRemaining, reason: 'loading' };
+            }
+            return { remaining: 0, reason: '' };
+        }
+
+        function getDeleteLockState() {
+            const manualRemaining = getManualSaveCooldownRemaining();
+            const toggleRemaining = getToggleCooldownRemaining();
+            const runtimeRemaining = getRuntimeLoadingRemaining();
+            if (manualRemaining >= runtimeRemaining && manualRemaining >= toggleRemaining && manualRemaining > 0) {
+                return { remaining: manualRemaining, reason: 'manual' };
+            }
+            if (toggleRemaining >= runtimeRemaining && toggleRemaining > 0) {
+                return { remaining: toggleRemaining, reason: 'toggle' };
+            }
+            if (runtimeRemaining > 0) {
+                return { remaining: runtimeRemaining, reason: 'loading' };
+            }
+            return { remaining: 0, reason: '' };
+        }
+
+        function getToggleLockState() {
+            const manualRemaining = getManualSaveCooldownRemaining();
+            const toggleRemaining = getToggleCooldownRemaining();
+            const runtimeRemaining = getRuntimeLoadingRemaining();
+            if (toggleActionPending) {
+                return { remaining: 0, reason: 'pending' };
+            }
+            if (manualRemaining >= runtimeRemaining && manualRemaining >= toggleRemaining && manualRemaining > 0) {
+                return { remaining: manualRemaining, reason: 'manual' };
+            }
+            if (runtimeRemaining >= toggleRemaining && runtimeRemaining > 0) {
+                return { remaining: runtimeRemaining, reason: 'loading' };
+            }
+            if (toggleRemaining > 0) {
+                return { remaining: toggleRemaining, reason: 'toggle' };
+            }
+            return { remaining: 0, reason: '' };
+        }
+
+        function updateToggleButtonUI() {
+            const current = getCurrentInstance();
+            const lockState = getToggleLockState();
+            const toggleBtn = document.getElementById('toggleInstanceBtn');
+            const headerToggleBtn = document.getElementById('headerToggleInstanceBtn');
+            const showToggleBtn = shouldShowCurrentInstanceToggle();
+            const baseLabel = current.enabled === false ? '启用配置' : '禁用配置';
+            let text = baseLabel;
+            let disabled = false;
+
+            if (lockState.reason === 'pending') {
+                text = '处理中...';
+                disabled = true;
+            } else if (lockState.remaining > 0) {
+                text = lockState.reason === 'loading' ? `进程加载 ${lockState.remaining}s` : `请等待 ${lockState.remaining}s`;
+                disabled = true;
+            }
+
+            if (toggleBtn) {
+                toggleBtn.textContent = text;
+                toggleBtn.disabled = disabled;
+                toggleBtn.style.display = showToggleBtn ? '' : 'none';
+            }
+            if (headerToggleBtn) {
+                headerToggleBtn.textContent = text;
+                headerToggleBtn.disabled = disabled;
+                headerToggleBtn.style.display = showToggleBtn ? '' : 'none';
+            }
+        }
+
+        function updateManualSaveCooldownUI() {
+            const lockState = getSaveLockState();
+            const remaining = lockState.remaining;
+            const saveBasicBtn = document.getElementById('saveBasicBtn');
+            const saveRawBtn = document.getElementById('saveRawBtn');
+            const baseLabel = getManualSaveButtonLabel();
+            const buttonText = lockState.reason === 'loading' ? `进程加载 ${remaining}s` : `请等待 ${remaining}s`;
+
+            if (saveBasicBtn) {
+                saveBasicBtn.disabled = saveActionPending || remaining > 0;
+                saveBasicBtn.textContent = saveActionPending ? '处理中...' : (remaining > 0 ? buttonText : baseLabel);
+            }
+            if (saveRawBtn) {
+                saveRawBtn.disabled = saveActionPending || remaining > 0;
+                saveRawBtn.textContent = saveActionPending ? '处理中...' : (remaining > 0 ? buttonText : baseLabel);
+            }
+            updateToggleButtonUI();
+            updateDeleteButtonUI();
+        }
+
+        function startManualSaveCooldown(seconds = 10) {
+            manualSaveCooldownUntil = Date.now() + seconds * 1000;
+            if (manualSaveCooldownTimer) {
+                clearInterval(manualSaveCooldownTimer);
+            }
+            updateManualSaveCooldownUI();
+            manualSaveCooldownTimer = setInterval(() => {
+                if (getManualSaveCooldownRemaining() <= 0) {
+                    clearInterval(manualSaveCooldownTimer);
+                    manualSaveCooldownTimer = null;
+                    manualSaveCooldownUntil = 0;
+                }
+                updateManualSaveCooldownUI();
+            }, 250);
+        }
+
+        function startToggleCooldown(seconds = 5) {
+            toggleCooldownUntil = Date.now() + seconds * 1000;
+            if (toggleCooldownTimer) {
+                clearInterval(toggleCooldownTimer);
+            }
+            updateToggleButtonUI();
+            toggleCooldownTimer = setInterval(() => {
+                if (getToggleCooldownRemaining() <= 0) {
+                    clearInterval(toggleCooldownTimer);
+                    toggleCooldownTimer = null;
+                    toggleCooldownUntil = 0;
+                }
+                updateToggleButtonUI();
+            }, 250);
+        }
+
+        function ensureManualSaveAllowed() {
+            const lockState = getSaveLockState();
+            if (lockState.remaining > 0) {
+                const message = lockState.reason === 'loading'
+                    ? `进程加载中，请等待 ${lockState.remaining} 秒后再保存`
+                    : `请等待 ${lockState.remaining} 秒后再保存`;
+                showToast(message, 'error');
+                updateManualSaveCooldownUI();
+                return false;
+            }
+            return true;
+        }
+
+        function ensureDeleteAllowed() {
+            const lockState = getDeleteLockState();
+            if (instanceDeletePending) {
+                showToast('配置删除处理中，请稍候', 'error');
+                return false;
+            }
+            if (lockState.remaining > 0) {
+                showToast(`实例操作中，请等待 ${lockState.remaining} 秒后再删除`, 'error');
+                updateDeleteButtonUI();
+                return false;
+            }
+            return true;
+        }
+
+        function ensureToggleAllowed() {
+            const lockState = getToggleLockState();
+            if (lockState.reason === 'pending') {
+                showToast('启用/禁用处理中，请稍候', 'error');
+                return false;
+            }
+            if (lockState.remaining > 0) {
+                const message = lockState.reason === 'loading'
+                    ? `进程加载中，请等待 ${lockState.remaining} 秒后再操作`
+                    : `请等待 ${lockState.remaining} 秒后再操作`;
+                showToast(message, 'error');
+                updateToggleButtonUI();
+                return false;
+            }
+            return true;
+        }
+
+        function updateDeleteButtonUI() {
+            const current = getCurrentInstance();
+            const headerDeleteBtn = document.getElementById('headerDeleteInstanceBtn');
+            const deleteBtn = document.getElementById('deleteInstanceBtn');
+            const showDeleteBtn = shouldShowCurrentInstanceDelete();
+            if (!headerDeleteBtn && !deleteBtn) {
+                return;
+            }
+            if (!showDeleteBtn) {
+                if (headerDeleteBtn) {
+                    headerDeleteBtn.style.display = 'none';
+                }
+                if (deleteBtn) {
+                    deleteBtn.style.display = 'none';
+                }
+                return;
+            }
+
+            const lockState = getDeleteLockState();
+            const text = instanceDeletePending
+                ? '删除中...'
+                : (lockState.remaining > 0 ? `请等待 ${lockState.remaining}s` : '删除配置');
+
+            if (headerDeleteBtn) {
+                headerDeleteBtn.style.display = '';
+                headerDeleteBtn.disabled = instanceDeletePending || lockState.remaining > 0;
+                headerDeleteBtn.textContent = text;
+            }
+            if (deleteBtn) {
+                deleteBtn.style.display = '';
+                deleteBtn.disabled = instanceDeletePending || lockState.remaining > 0;
+                deleteBtn.textContent = text;
+            }
+        }
+
+        function refreshInstanceActions() {
+            const current = getCurrentInstance();
+            const displayState = getInstanceDisplayState(current);
+            const toggleBtn = document.getElementById('toggleInstanceBtn');
+            const headerToggleBtn = document.getElementById('headerToggleInstanceBtn');
+            const headerDeleteBtn = document.getElementById('headerDeleteInstanceBtn');
+            const stateText = document.getElementById('instanceState');
+            const currentName = document.getElementById('instanceCurrentName');
+            const currentID = document.getElementById('instanceCurrentId');
+            const currentType = document.getElementById('instanceCurrentType');
+            const saveBasicBtn = document.getElementById('saveBasicBtn');
+            const saveRawBtn = document.getElementById('saveRawBtn');
+            const showToggleBtn = shouldShowCurrentInstanceToggle();
+
+            if (currentName) {
+                currentName.textContent = current.name || current.id;
+            }
+            if (currentID) {
+                currentID.textContent = `ID: ${current.id}`;
+            }
+            if (currentType) {
+                currentType.textContent = displayState.typeText;
+            }
+            if (toggleBtn) {
+                toggleBtn.className = `btn btn-full ${current.enabled === false ? 'btn-suc' : 'btn-dan'}`;
+            }
+            if (headerToggleBtn) {
+                headerToggleBtn.className = `btn btn-inline-toggle ${current.enabled === false ? 'btn-suc' : 'btn-dan'}`;
+            }
+            if (stateText) {
+                stateText.textContent = displayState.badgeText;
+                stateText.className = displayState.badgeClass;
+            }
+            if (saveBasicBtn) {
+                saveBasicBtn.textContent = getManualSaveButtonLabel();
+            }
+            if (saveRawBtn) {
+                saveRawBtn.textContent = getManualSaveButtonLabel();
+            }
+            updateManualSaveCooldownUI();
+        }
+
+        function renderInstanceSwitcher() {
+            const switcher = document.getElementById('instanceSwitcher');
+            if (!switcher) return;
+            switcher.innerHTML = instances.map(x => {
+                const active = x.id === currentInstanceId ? 'active' : '';
+                const defaultTag = x.isDefault ? '<span>默认配置</span>' : '<span>独立配置</span>';
+                const displayState = getInstanceDisplayState(x);
+                const statusTag = `<span><span class="${displayState.switcherDotClass}"></span>${displayState.switcherText}</span>`;
+                return `<button type="button" class="instance-chip ${active}" onclick='switchInstance(${JSON.stringify(x.id)})'>
+                    <span class="instance-chip-name">${x.name || x.id}</span>
+                    <span class="instance-chip-meta"><span class="instance-chip-id">ID: ${x.id}</span>${defaultTag}${statusTag}</span>
+                </button>`;
+            }).join('');
+            if (!instances.some(x => x.id === currentInstanceId) && instances.length > 0) {
+                currentInstanceId = instances[0].id;
+            }
+            refreshInstanceActions();
+        }
+
+        async function loadInstances(preferredId = '') {
+            const res = await fetch(actionUrl('listInstances'));
+            const data = await res.json();
+            if (!data.success) {
+                throw new Error(data.error || '配置列表加载失败');
+            }
+            instances = data.instances || [];
+            instancesLoaded = true;
+            if (preferredId && instances.some(x => x.id === preferredId)) {
+                currentInstanceId = preferredId;
+            } else if (!instances.some(x => x.id === currentInstanceId) && instances.length > 0) {
+                currentInstanceId = instances[0].id;
+            }
+            renderInstanceSwitcher();
+        }
+
+        async function switchInstance(instanceId) {
+            currentInstanceId = instanceId || 'default';
+            renderInstanceSwitcher();
+            closeSwitchInstanceModal();
+            await getConfig();
+            await checkStatus();
+            if (curTab === 'log') {
+                updateLogPreview();
+            }
+        }
+
+        function openSwitchInstanceModal() {
+            renderInstanceSwitcher();
+            document.getElementById('switchInstanceModalOverlay').classList.add('show');
+        }
+
+        function closeSwitchInstanceModal() {
+            document.getElementById('switchInstanceModalOverlay').classList.remove('show');
+        }
+
+        function openInstanceManageModal() {
+            refreshInstanceActions();
+            document.getElementById('instanceManageModalOverlay').classList.add('show');
+        }
+
+        function closeInstanceManageModal() {
+            document.getElementById('instanceManageModalOverlay').classList.remove('show');
+        }
+
+        function handleManageRename() {
+            closeInstanceManageModal();
+            openRenameInstanceModal();
+        }
+
+        function handleManageToggle() {
+            closeInstanceManageModal();
+            toggleCurrentInstanceEnabled();
+        }
+
+        function handleManageDelete() {
+            closeInstanceManageModal();
+            deleteCurrentInstance();
+        }
+
+        async function toggleCurrentInstanceEnabled() {
+            const current = getCurrentInstance();
+            const nextEnabled = current.enabled === false;
+            const actionText = nextEnabled ? '启用' : '禁用';
+
+            if (!ensureToggleAllowed()) {
+                return;
+            }
+
+            if (!nextEnabled) {
+                showConfirm({
+                    title: '禁用配置',
+                    message: `确定要禁用配置 "${current.name}" 吗？禁用后不会随保存或应用启动自动拉起。`,
+                    confirmText: '禁用',
+                    confirmClass: 'btn-dan',
+                    onConfirm: () => updateCurrentInstanceEnabled(nextEnabled, actionText, current.name)
+                });
+                return;
+            }
+            updateCurrentInstanceEnabled(nextEnabled, actionText, current.name);
+        }
+
+        async function updateCurrentInstanceEnabled(nextEnabled, actionText, currentName) {
+            try {
+                toggleActionPending = true;
+                updateToggleButtonUI();
+                const res = await fetch(actionUrl('updateInstance'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceId: currentInstanceId, enabled: nextEnabled })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    showToast(data.error || `${actionText}配置失败`, 'error');
+                    return;
+                }
+
+                await loadInstances(currentInstanceId);
+                await switchInstance(currentInstanceId);
+                startToggleCooldown(nextEnabled ? 10 : 5);
+                showToast(data.message || `配置 ${currentName} 已${actionText}`, 'success');
+            } catch (e) {
+                showToast(`${actionText}配置失败`, 'error');
+            } finally {
+                toggleActionPending = false;
+                updateToggleButtonUI();
+            }
+        }
+
+        function openCreateInstanceModal() {
+            document.getElementById('instanceNameInput').value = '';
+            document.getElementById('instanceModalOverlay').classList.add('show');
+            setTimeout(() => document.getElementById('instanceNameInput').focus(), 30);
+        }
+
+        function closeCreateInstanceModal() {
+            document.getElementById('instanceModalOverlay').classList.remove('show');
+        }
+
+        function openRenameInstanceModal() {
+            const current = getCurrentInstance();
+            document.getElementById('renameInstanceInput').value = current.name || current.id || '';
+            document.getElementById('renameInstanceModalOverlay').classList.add('show');
+            setTimeout(() => document.getElementById('renameInstanceInput').focus(), 30);
+        }
+
+        function closeRenameInstanceModal() {
+            document.getElementById('renameInstanceModalOverlay').classList.remove('show');
+        }
+
+        async function submitCreateInstance() {
+            const raw = document.getElementById('instanceNameInput').value.trim();
+            if (!raw) {
+                showToast('请输入配置名称', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(actionUrl('createInstance'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceId: raw })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    showToast(data.error || '配置创建失败', 'error');
+                    return;
+                }
+                closeCreateInstanceModal();
+                await loadInstances(data.instanceId);
+                await switchInstance(data.instanceId);
+                showToast(`配置 ${data.instanceId} 已创建，未配置配置文件，请先保存配置`, 'success');
+            } catch (e) {
+                showToast('配置创建失败', 'error');
+            }
+        }
+
+        async function submitRenameInstance() {
+            const current = getCurrentInstance();
+            const raw = document.getElementById('renameInstanceInput').value.trim();
+            if (!raw) {
+                showToast('请输入显示名称', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch(actionUrl('updateInstance'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceId: current.id, name: raw })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    showToast(data.error || '配置重命名失败', 'error');
+                    return;
+                }
+
+                closeRenameInstanceModal();
+                await loadInstances(current.id);
+                await switchInstance(current.id);
+                showToast(`配置显示名称已修改为 ${raw}`, 'success');
+            } catch (e) {
+                showToast('配置重命名失败', 'error');
+            }
+        }
+
+        async function deleteCurrentInstance() {
+            if (currentInstanceId === 'default') {
+                showToast('默认配置不能删除', 'error');
+                return;
+            }
+            if (!ensureDeleteAllowed()) {
+                return;
+            }
+
+            const targetId = currentInstanceId;
+            showConfirm({
+                title: '删除配置',
+                message: `确定要删除配置 "${targetId}" 吗？该配置的文件和日志会一并删除，并终止旧进程。`,
+                confirmText: '删除',
+                confirmClass: 'btn-dan',
+                onConfirm: async function() {
+                if (!ensureDeleteAllowed()) {
+                    return;
+                }
+                instanceDeletePending = true;
+                updateDeleteButtonUI();
+                try {
+                    const res = await fetch(actionUrl('deleteInstance'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ instanceId: targetId })
+                    });
+                    const data = await res.json();
+                    if (!data.success) {
+                        showToast(data.error || '配置删除失败', 'error');
+                        return;
+                    }
+                    await loadInstances('default');
+                    await switchInstance('default');
+                    showToast(`配置 ${targetId} 已删除`, 'success');
+                } catch (e) {
+                    showToast('配置删除失败', 'error');
+                } finally {
+                    instanceDeletePending = false;
+                    updateDeleteButtonUI();
+                }
+            }});
+        }
+
+        function toggleAuthTokenVisibility() {
+            authTokenVisible = !authTokenVisible;
+            const authInput = document.getElementById('authToken');
+            authInput.type = authTokenVisible ? 'text' : 'password';
+        }
+
+        async function showConfirm(options, callback) {
+            const config = typeof options === 'string'
+                ? { title: '请确认', message: options, confirmText: '确认', confirmClass: 'btn-pri', onConfirm: callback }
+                : options;
+            document.getElementById('confirmTitle').textContent = config.title || '请确认';
+            document.getElementById('confirmMessage').textContent = config.message || '确定要继续吗？';
+            document.getElementById('confirmOverlay').classList.add('show');
+            
+            const confirmBtn = document.getElementById('confirmBtn');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = config.confirmText || '确认';
+            confirmBtn.className = `btn ${config.confirmClass || 'btn-pri'}`;
+            
+            async function executeDelete() {
+                if (confirmBtn.disabled) {
+                    return;
+                }
+
+                confirmBtn.disabled = true;
+                closeConfirm();
+                if (typeof config.onConfirm === 'function') {
+                    await config.onConfirm();
+                }
+            }
+            
+            confirmBtn.onclick = executeDelete;
+        }
+        
+        function closeConfirm() {
+            document.getElementById('confirmOverlay').classList.remove('show');
+            pendingDeleteIndex = -1;
+        }
+
+        function handleInstanceNameKeydown(event) {
+            if (event.key === 'Enter') {
+                submitCreateInstance();
+            }
+        }
+
+        function handleRenameInstanceKeydown(event) {
+            if (event.key === 'Enter') {
+                submitRenameInstance();
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('frpc-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        function tab(el, t) {
+            curTab = t;
+            document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+            el.classList.add('active');
+            document.querySelectorAll('.content').forEach(x => x.classList.remove('active'));
+            document.getElementById('content-' + t).classList.add('active');
+            if (t === 'config') updateConfigPreview();
+            if (t === 'log') { updateLogPreview(); }
+            if (t === 'list') renderProxyTable();
+        }
+
+        function validateBandwidth(limit) {
+            if (!limit) return true;
+            const re = /^[\d.]+(KB|MB|kb|mb|K|M|k|m)$/;
+            const hasG = /[\d.]+(GB|gb|G|g)/i.test(limit);
+            if (hasG) {
+                return 'frpc 不支持 GB 单位，请使用 KB 或 MB';
+            }
+            return re.test(limit);
+        }
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            toastIcon.className = 'toast-icon ' + type;
+            toastIcon.textContent = type === 'success' ? '✓' : '✕';
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function toggleWireProtocolControls() {
+            const enabled = document.getElementById('wireProtocolEnabled').checked;
+            const select = document.getElementById('wireProtocol');
+            select.disabled = !enabled;
+            select.style.opacity = enabled ? '1' : '0.6';
+        }
+
+        async function getConfig() {
+            const res = await fetch(actionUrl('getConfig', { instanceId: currentInstanceId }));
+            const data = await res.json();
+            const current = instances.find(x => x.id === currentInstanceId);
+            if (current && typeof data.enabled === 'boolean') {
+                current.enabled = data.enabled;
+            }
+            document.getElementById('serverAddr').value = data.serverAddr;
+            document.getElementById('serverPort').value = data.serverPort;
+            document.getElementById('authToken').value = data.authToken || '';
+            document.getElementById('protocol').value = data.protocol;
+            document.getElementById('wireProtocolEnabled').checked = data.wireProtocolEnabled === true;
+            document.getElementById('wireProtocol').value = data.wireProtocol || 'v1';
+            document.getElementById('natHoleStunServer').value = data.natHoleStunServer || '';
+            document.getElementById('tcpMux').checked = data.tcpMux !== false;
+            document.getElementById('heartbeatInterval').value = data.heartbeatInterval || '';
+            document.getElementById('heartbeatTimeout').value = data.heartbeatTimeout || '';
+            document.getElementById('tcpMuxKeepaliveInterval').value = data.tcpMuxKeepaliveInterval || '';
+            toggleWireProtocolControls();
+            proxies = data.proxies || [];
+            renderProxies();
+            renderProxyTable();
+            updateConfigPreview();
+            refreshInstanceActions();
+        }
+
+        function renderProxies() {
+            const list = document.getElementById('proxyList');
+            if (proxies.length === 0) {
+                list.innerHTML = '<div class="empty">暂无代理配置，点击上方按钮添加</div>';
+                return;
+            }
+            list.innerHTML = proxies.map((p, i) => {
+                let ports = `${p.localIP}:${p.localPort}`;
+                if (p.remotePort) ports += ' → ' + p.remotePort;
+                return `
+                    <div class="proxy-item">
+                        <div class="proxy-info">
+                            <div class="proxy-info-left">
+                                <span class="proxy-badge ${p.type}">${p.type}</span>
+                                <div>
+                                    <div class="proxy-name">${p.name}</div>
+                                    <div class="proxy-ports">${ports}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="proxy-actions">
+                            <button class="btn btn-sm btn-ghost" onclick="editProxy(${i})">编辑</button>
+                            <button class="btn btn-sm btn-dan" onclick="delProxy(${i})">删除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderProxyTable() {
+            const body = document.getElementById('proxyTableBody');
+            if (proxies.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">暂无代理</td></tr>';
+                return;
+            }
+            body.innerHTML = proxies.map((p, i) => {
+                let domainHtml = '<span style="color: var(--muted); font-size: 11px;">-</span>';
+                let hasCustomDomain = false;
+                if (p.customDomains && p.customDomains.length > 0) {
+                    // 支持多个自定义域名
+                    domainHtml = p.customDomains.map(d => 
+                        `<a href="${p.type === 'https' ? 'https://' : 'http://'}${d}" target="_blank" class="domain-link">${d}</a>`
+                    ).join('<br>');
+                    hasCustomDomain = true;
+                } else if (p.customDomain) {
+                    // 兼容旧格式
+                    domainHtml = `<a href="${p.type === 'https' ? 'https://' : 'http://'}${p.customDomain}" target="_blank" class="domain-link">${p.customDomain}</a>`;
+                    hasCustomDomain = true;
+                } else if (p.subDomain) {
+                    domainHtml = `<span style="font-size: 11px; color: var(--muted);">${p.subDomain}</span>`;
+                }
+                
+                let pingButton = '';
+                if (hasCustomDomain) {
+                    pingButton = `<button class="btn btn-sm btn-suc" onclick="pingProxy(${i})">Ping</button>`;
+                } else {
+                    pingButton = `<span style="font-size: 11px; color: var(--muted);">不可测</span>`;
+                }
+                
+                let actionButtons = `
+                    <button class="btn btn-sm btn-ghost" onclick="editProxy(${i})">编辑</button>
+                    <button class="btn btn-sm btn-dan" onclick="delProxy(${i})">删除</button>
+                `;
+                
+                return `
+                    <tr>
+                        <td><span class="proxy-badge ${p.type}">${p.type}</span></td>
+                        <td style="font-weight: 600;">${p.name}</td>
+                        <td>${p.localIP}:${p.localPort}</td>
+                        <td>${p.remotePort || '-'}</td>
+                        <td>${domainHtml}</td>
+                        <td class="delay-cell"><span class="delay-value" id="delay-${i}">--</span></td>
+                        <td>${pingButton}</td>
+                        <td>${actionButtons}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function pingProxy(i) {
+            const proxy = proxies[i];
+            const delayEl = document.getElementById('delay-' + i);
+            delayEl.textContent = '...';
+            delayEl.className = 'delay-value';
+
+            // 优先用自定义域名
+            let targetUrl = '';
+            if (proxy.customDomains && proxy.customDomains.length > 0) {
+                const proto = proxy.type === 'https' ? 'https://' : 'http://';
+                targetUrl = proto + proxy.customDomains[0];
+            } else if (proxy.customDomain) {
+                const proto = proxy.type === 'https' ? 'https://' : 'http://';
+                targetUrl = proto + proxy.customDomain;
+            } else {
+                // 没有自定义域名
+                delayEl.textContent = '不可测';
+                delayEl.className = 'delay-value';
+                return;
+            }
+
+            // 前端本地测延迟：用 HEAD 请求（带时间戳防缓存）
+            const startTime = Date.now();
+            const cacheBuster = `?t=${startTime}`;
+            
+            fetch(targetUrl + cacheBuster, {
+                method: 'HEAD',
+                mode: 'no-cors',
+                cache: 'no-cache'
+            }).then(() => {
+                const latency = Date.now() - startTime;
+                delayEl.textContent = latency + 'ms';
+                delayEl.className = 'delay-value success';
+            }).catch(() => {
+                // no-cors 模式下会进 catch，但实际可能成功了，再试一次用图片
+                const img = new Image();
+                const imgStart = Date.now();
+                img.onload = img.onerror = () => {
+                    const latency = Date.now() - imgStart;
+                    if (latency < 10000) { // 10秒内算成功
+                        delayEl.textContent = latency + 'ms';
+                        delayEl.className = 'delay-value success';
+                    } else {
+                        delayEl.textContent = '超时';
+                        delayEl.className = 'delay-value error';
+                    }
+                };
+                img.src = targetUrl + '/favicon.ico' + cacheBuster;
+                // 超时兜底
+                setTimeout(() => {
+                    if (delayEl.textContent === '...') {
+                        delayEl.textContent = '超时';
+                        delayEl.className = 'delay-value error';
+                    }
+                }, 3000);
+            });
+        }
+
+        function pingAll() {
+            proxies.forEach((p, idx) => {
+                const hasCustomDomain = (p.customDomains && p.customDomains.length > 0) || p.customDomain;
+                if (hasCustomDomain) {
+                    setTimeout(() => pingProxy(idx), idx * 300);
+                }
+            });
+        }
+
+        function delProxy(i) {
+            const proxy = proxies[i];
+            showConfirm({
+                title: '删除代理',
+                message: `确定要删除代理 "${proxy.name}" 吗？删除后将热重载代理配置。`,
+                confirmText: '删除',
+                confirmClass: 'btn-dan',
+                onConfirm: function() {
+                proxies.splice(i, 1);
+                renderProxies();
+                renderProxyTable();
+                saveConfig('删除成功，热重载已触发', 'reload');
+            }});
+        }
+
+        function editProxy(i) {
+            const proxy = proxies[i];
+            editingIndex = i;
+            addingType = proxy.type;
+            const types = {
+                tcp: 'TCP 代理',
+                udp: 'UDP 代理',
+                http: 'HTTP 代理',
+                https: 'HTTPS 代理',
+                stcp: 'STCP 安全隧道',
+                xtcp: 'P2P 点对点连接'
+            };
+            document.getElementById('modalTitle').innerText = '编辑 ' + types[proxy.type];
+            document.getElementById('modalConfirmBtn').innerText = '保存修改';
+            document.getElementById('modalConfirmBtn').onclick = updateProxy;
+
+            let body = `
+                <div class="field">
+                    <label>代理名称 (不支持中文)</label>
+                    <input type="text" id="pName" value="${proxy.name}">
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>本地地址</label>
+                        <input type="text" id="pLocalIP" value="${proxy.localIP}">
+                    </div>
+                    <div class="field">
+                        <label>本地端口</label>
+                        <input type="number" id="pLocalPort" value="${proxy.localPort}">
+                    </div>
+                </div>
+            `;
+            if (proxy.type === 'tcp' || proxy.type === 'udp') {
+                body += `
+                    <div class="field">
+                        <label>远程端口</label>
+                        <input type="number" id="pRemotePort" value="${proxy.remotePort || ''}">
+                    </div>
+                    <div class="form-row">
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseEncryption" style="width: auto;" ${proxy.useEncryption ? 'checked' : ''}>
+                                加密传输
+                            </label>
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseCompression" style="width: auto;" ${proxy.useCompression ? 'checked' : ''}>
+                                压缩传输
+                            </label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>带宽限制 (单位必须大写) (如: 1MB, 500KB，单位必须大写，留空不限制)</label>
+                        <input type="text" id="pBandwidthLimit" value="${proxy.bandwidthLimit || ''}" placeholder="留空不限制">
+                    </div>
+                `;
+            } else if (proxy.type === 'http' || proxy.type === 'https') {
+                const isCustom = !proxy.subDomain;
+                const customDomainsStr = proxy.customDomains ? proxy.customDomains.join(', ') : (proxy.customDomain || '');
+                body += `
+                    <div class="domain-tabs">
+                        <div class="domain-tab ${isCustom ? 'active' : ''}" onclick="switchDomainTab('custom')">自定义域名</div>
+                        <div class="domain-tab ${!isCustom ? 'active' : ''}" onclick="switchDomainTab('sub')">子域名</div>
+                    </div>
+                    <div id="domainCustom" class="domain-content ${isCustom ? 'active' : ''}">
+                        <div class="field">
+                            <label>自定义域名 (支持多个，逗号分隔)</label>
+                            <input type="text" id="pCustomDomain" value="${customDomainsStr}">
+                        </div>
+                    </div>
+                    <div id="domainSub" class="domain-content ${!isCustom ? 'active' : ''}">
+                        <div class="field">
+                            <label>子域名</label>
+                            <input type="text" id="pSubDomain" value="${proxy.subDomain || ''}">
+                        </div>
+                        <div class="domain-tip">需要 frps 配置 subdomainHost <a href="https://gofrp.org/zh-cn/docs/features/http-https/subdomain/" target="_blank">[查看教程文档]</a></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>路径 (可选，逗号分隔)</label>
+                            <input type="text" id="pLocations" value="${proxy.locations ? proxy.locations.join(', ') : ''}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseEncryption" style="width: auto;" ${proxy.useEncryption ? 'checked' : ''}>
+                                加密传输
+                            </label>
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseCompression" style="width: auto;" ${proxy.useCompression ? 'checked' : ''}>
+                                压缩传输
+                            </label>
+                        </div>
+                    </div>
+                `;
+                if (proxy.type === 'http') {
+                    body += `
+                        <div class="form-row three">
+                            <div class="field">
+                                <label>带宽限制 (单位必须大写)</label>
+                                <input type="text" id="pBandwidthLimit" value="${proxy.bandwidthLimit || ''}" placeholder="如: 1MB, 500KB">
+                            </div>
+                            <div class="field">
+                                <label>用户名</label>
+                                <input type="text" id="pHttpUser" value="${proxy.httpUser || ''}" placeholder="HTTP Basic Auth">
+                            </div>
+                            <div class="field">
+                                <label>密码</label>
+                                <input type="password" id="pHttpPassword" value="${proxy.httpPassword || ''}" placeholder="HTTP Basic Auth">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    body += `
+                        <div class="form-row">
+                            <div class="field">
+                                <label>带宽限制 (单位必须大写)</label>
+                                <input type="text" id="pBandwidthLimit" value="${proxy.bandwidthLimit || ''}" placeholder="如: 1MB, 500KB">
+                            </div>
+                        </div>
+                    `;
+                }
+            } else if (proxy.type === 'stcp' || proxy.type === 'xtcp') {
+                body += `
+                    <div class="field">
+                        <label>密钥 (Secret Key)</label>
+                        <input type="text" id="pSecretKey" value="${proxy.secretKey || ''}">
+                    </div>
+                `;
+            }
+            document.getElementById('modalBody').innerHTML = body;
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function updateProxy() {
+            const name = document.getElementById('pName').value.trim();
+            if (!name) { showToast('请输入代理名称', 'error'); return; }
+            // 检查代理名称是否重复（排除当前正在编辑的代理）
+            const existingIndex = proxies.findIndex((p, idx) => idx !== editingIndex && p.name === name);
+            if (existingIndex !== -1) {
+                showToast('代理名称已存在，请使用其他名称', 'error');
+                return;
+            }
+            const localIP = document.getElementById('pLocalIP').value.trim() || '127.0.0.1';
+            const localPort = parseInt(document.getElementById('pLocalPort').value);
+            if (!localPort) { showToast('请输入本地端口', 'error'); return; }
+
+            const proxy = { ...proxies[editingIndex], name, type: addingType, localIP, localPort };
+            if (addingType === 'tcp' || addingType === 'udp') {
+                proxy.remotePort = parseInt(document.getElementById('pRemotePort').value) || 0;
+                if (document.getElementById('pUseEncryption').checked) proxy.useEncryption = true;
+                if (document.getElementById('pUseCompression').checked) proxy.useCompression = true;
+                const bw = document.getElementById('pBandwidthLimit').value.trim();
+                if (bw) {
+                    const validationResult = validateBandwidth(bw);
+                    if (validationResult !== true) {
+                        showToast(validationResult === false ? '带宽限制单位必须为 KB/MB（如 1MB, 500KB）' : validationResult, 'error');
+                        return;
+                    }
+                    proxy.bandwidthLimit = bw;
+                }
+            } else if (addingType === 'http' || addingType === 'https') {
+                const activeTab = document.querySelector('.domain-tab.active');
+                normalizeProxyDomainMode(proxy, activeTab && activeTab.textContent === '子域名');
+                if (!proxy.subDomain && (!proxy.customDomains || proxy.customDomains.length === 0)) {
+                    showToast('HTTP/HTTPS 代理必须填写域名（子域名或自定义域名）', 'error'); return;
+                }
+                const locs = document.getElementById('pLocations') ? document.getElementById('pLocations').value.trim() : '';
+                if (locs) {
+                    proxy.locations = locs.split(',').map(x => x.trim()).filter(x => x);
+                }
+                if (document.getElementById('pUseEncryption') && document.getElementById('pUseEncryption').checked) proxy.useEncryption = true;
+                if (document.getElementById('pUseCompression') && document.getElementById('pUseCompression').checked) proxy.useCompression = true;
+                const bwHttp = document.getElementById('pBandwidthLimit') ? document.getElementById('pBandwidthLimit').value.trim() : '';
+                if (bwHttp) {
+                    if (!validateBandwidth(bwHttp)) {
+                        showToast('带宽限制单位必须为 KB/MB（如 1MB, 500KB）', 'error');
+                        return;
+                    }
+                    proxy.bandwidthLimit = bwHttp;
+                }
+                if (addingType === 'http') {
+                    const httpUser = document.getElementById('pHttpUser') ? document.getElementById('pHttpUser').value.trim() : '';
+                    const httpPassword = document.getElementById('pHttpPassword') ? document.getElementById('pHttpPassword').value.trim() : '';
+                    if (httpUser) proxy.httpUser = httpUser;
+                    if (httpPassword) proxy.httpPassword = httpPassword;
+                }
+            } else if (addingType === 'stcp' || addingType === 'xtcp') {
+                proxy.secretKey = document.getElementById('pSecretKey').value.trim() || '';
+            }
+
+            proxies[editingIndex] = proxy;
+            editingIndex = -1;
+            renderProxies();
+            renderProxyTable();
+            closeModal();
+            saveConfig('修改成功，热重载已触发', 'reload');
+        }
+
+        let addingType = '';
+        function openAdd(type) {
+            editingIndex = -1;
+            addingType = type;
+            const types = {
+                tcp: 'TCP 代理',
+                udp: 'UDP 代理',
+                http: 'HTTP 代理',
+                https: 'HTTPS 代理',
+                stcp: 'STCP 安全隧道',
+                xtcp: 'XTCP 点对点连接'
+            };
+            document.getElementById('modalTitle').innerText = '添加 ' + types[type];
+            document.getElementById('modalConfirmBtn').innerText = '添加并应用';
+            document.getElementById('modalConfirmBtn').onclick = addProxy;
+            let body = '';
+            const common = `
+                <div class="field">
+                    <label>代理名称 (不支持中文)</label>
+                    <input type="text" id="pName" placeholder="例如: web-server">
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>本地地址</label>
+                        <input type="text" id="pLocalIP" value="127.0.0.1">
+                    </div>
+                    <div class="field">
+                        <label>本地端口</label>
+                        <input type="number" id="pLocalPort" placeholder="例如: 8080">
+                    </div>
+                </div>
+            `;
+            if (type === 'tcp' || type === 'udp') {
+                body = common + `
+                    <div class="field">
+                        <label>远程端口</label>
+                        <input type="number" id="pRemotePort" placeholder="服务端暴露的端口">
+                    </div>
+                    <div class="form-row">
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseEncryption" style="width: auto;">
+                                加密传输
+                            </label>
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseCompression" style="width: auto;">
+                                压缩传输
+                            </label>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>带宽限制 (单位必须大写) (如: 1MB, 500KB，留空不限制)</label>
+                        <input type="text" id="pBandwidthLimit" placeholder="留空不限制">
+                    </div>
+                `;
+            } else if (type === 'http' || type === 'https') {
+                body = common + `
+                    <div class="domain-tabs">
+                        <div class="domain-tab active" onclick="switchDomainTab('custom')">自定义域名</div>
+                        <div class="domain-tab" onclick="switchDomainTab('sub')">子域名</div>
+                    </div>
+                    <div id="domainCustom" class="domain-content active">
+                        <div class="field">
+                            <label>自定义域名 (支持多个，逗号分隔)</label>
+                            <input type="text" id="pCustomDomain" placeholder="例如: app.example.com, www.example.com">
+                        </div>
+                    </div>
+                    <div id="domainSub" class="domain-content">
+                        <div class="field">
+                            <label>子域名</label>
+                            <input type="text" id="pSubDomain" placeholder="例如: myapp">
+                        </div>
+                        <div class="domain-tip">需要 frps 配置 subdomainHost <a href="https://gofrp.org/zh-cn/docs/features/http-https/subdomain/" target="_blank">[查看教程文档]</a></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field">
+                            <label>路径 (可选，逗号分隔)</label>
+                            <input type="text" id="pLocations" placeholder="例如: /, /api">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseEncryption" style="width: auto;">
+                                加密传输
+                            </label>
+                        </div>
+                        <div class="field" style="flex: 1;">
+                            <label style="display: flex; align-items: center; gap: 6px;">
+                                <input type="checkbox" id="pUseCompression" style="width: auto;">
+                                压缩传输
+                            </label>
+                        </div>
+                    </div>
+                `;
+                if (type === 'http') {
+                    body += `
+                        <div class="form-row three">
+                            <div class="field">
+                                <label>带宽限制 (单位必须大写)</label>
+                                <input type="text" id="pBandwidthLimit" placeholder="如: 1MB, 500KB">
+                            </div>
+                            <div class="field">
+                                <label>用户名</label>
+                                <input type="text" id="pHttpUser" placeholder="HTTP Basic Auth">
+                            </div>
+                            <div class="field">
+                                <label>密码</label>
+                                <input type="password" id="pHttpPassword" placeholder="HTTP Basic Auth">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    body += `
+                        <div class="form-row">
+                            <div class="field">
+                                <label>带宽限制 (单位必须大写)</label>
+                                <input type="text" id="pBandwidthLimit" placeholder="如: 1MB, 500KB">
+                            </div>
+                        </div>
+                    `;
+                }
+            } else if (type === 'stcp' || type === 'xtcp') {
+                body = common + `
+                    <div class="field">
+                        <label>密钥 (Secret Key)</label>
+                        <input type="text" id="pSecretKey" placeholder="安全密钥，双方需要一致">
+                    </div>
+                `;
+            }
+            document.getElementById('modalBody').innerHTML = body;
+            document.getElementById('modal').classList.add('show');
+        }
+
+        function switchDomainTab(tab) {
+            document.querySelectorAll('.domain-tab').forEach(x => x.classList.remove('active'));
+            document.querySelectorAll('.domain-content').forEach(x => x.classList.remove('active'));
+            if (tab === 'custom') {
+                document.querySelector('.domain-tab:nth-child(1)').classList.add('active');
+                document.getElementById('domainCustom').classList.add('active');
+            } else {
+                document.querySelector('.domain-tab:nth-child(2)').classList.add('active');
+                document.getElementById('domainSub').classList.add('active');
+            }
+        }
+
+        function normalizeProxyDomainMode(proxy, useSubDomain) {
+            if (useSubDomain) {
+                proxy.customDomain = '';
+                proxy.customDomains = [];
+                proxy.subDomain = document.getElementById('pSubDomain').value.trim() || '';
+            } else {
+                const domains = document.getElementById('pCustomDomain').value.trim();
+                proxy.subDomain = '';
+                proxy.customDomain = '';
+                proxy.customDomains = domains
+                    ? domains.split(',').map(x => x.trim()).filter(x => x)
+                    : [];
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        function addProxy() {
+            const name = document.getElementById('pName').value.trim();
+            if (!name) { showToast('请输入代理名称', 'error'); return; }
+            // 检查代理名称是否重复
+            const existingIndex = proxies.findIndex(p => p.name === name);
+            if (existingIndex !== -1) {
+                showToast('代理名称已存在，请使用其他名称', 'error');
+                return;
+            }
+            const localIP = document.getElementById('pLocalIP').value.trim() || '127.0.0.1';
+            const localPort = parseInt(document.getElementById('pLocalPort').value);
+            if (!localPort) { showToast('请输入本地端口', 'error'); return; }
+
+            const proxy = { name, type: addingType, localIP, localPort };
+            if (addingType === 'tcp' || addingType === 'udp') {
+                proxy.remotePort = parseInt(document.getElementById('pRemotePort').value) || 0;
+                if (document.getElementById('pUseEncryption').checked) proxy.useEncryption = true;
+                if (document.getElementById('pUseCompression').checked) proxy.useCompression = true;
+                const bw = document.getElementById('pBandwidthLimit').value.trim();
+                if (bw) {
+                    const validationResult = validateBandwidth(bw);
+                    if (validationResult !== true) {
+                        showToast(validationResult === false ? '带宽限制单位必须为 KB/MB（如 1MB, 500KB）' : validationResult, 'error');
+                        return;
+                    }
+                    proxy.bandwidthLimit = bw;
+                }
+            } else if (addingType === 'http' || addingType === 'https') {
+                const activeTab = document.querySelector('.domain-tab.active');
+                normalizeProxyDomainMode(proxy, activeTab && activeTab.textContent === '子域名');
+                if (!proxy.subDomain && (!proxy.customDomains || proxy.customDomains.length === 0)) {
+                    showToast('HTTP/HTTPS 代理必须填写域名（子域名或自定义域名）', 'error'); return;
+                }
+                const locs = document.getElementById('pLocations') ? document.getElementById('pLocations').value.trim() : '';
+                if (locs) {
+                    proxy.locations = locs.split(',').map(x => x.trim()).filter(x => x);
+                }
+                if (document.getElementById('pUseEncryption') && document.getElementById('pUseEncryption').checked) proxy.useEncryption = true;
+                if (document.getElementById('pUseCompression') && document.getElementById('pUseCompression').checked) proxy.useCompression = true;
+                const bwHttpAdd = document.getElementById('pBandwidthLimit') ? document.getElementById('pBandwidthLimit').value.trim() : '';
+                if (bwHttpAdd) {
+                    if (!validateBandwidth(bwHttpAdd)) {
+                        showToast('带宽限制单位必须为 KB/MB（如 1MB, 500KB）', 'error');
+                        return;
+                    }
+                    proxy.bandwidthLimit = bwHttpAdd;
+                }
+                if (addingType === 'http') {
+                    const httpUser = document.getElementById('pHttpUser') ? document.getElementById('pHttpUser').value.trim() : '';
+                    const httpPassword = document.getElementById('pHttpPassword') ? document.getElementById('pHttpPassword').value.trim() : '';
+                    if (httpUser) proxy.httpUser = httpUser;
+                    if (httpPassword) proxy.httpPassword = httpPassword;
+                }
+            } else if (addingType === 'stcp' || addingType === 'xtcp') {
+                proxy.secretKey = document.getElementById('pSecretKey').value.trim() || '';
+            }
+            proxies.push(proxy);
+            renderProxies();
+            renderProxyTable();
+            closeModal();
+            saveConfig('添加成功，热重载已触发', 'reload');
+        }
+
+        async function updateConfigPreview() {
+            // 直接读取配置文件原始内容
+            try {
+                const res = await fetch(actionUrl('getRawConfig', { instanceId: currentInstanceId }));
+                if (res.ok) {
+                    const config = await res.text();
+                    document.getElementById('configPreview').textContent = config;
+                }
+            } catch (e) {
+                console.log('Preview error:', e);
+            }
+        }
+
+        async function updateLogPreview() {
+            try {
+                const res = await fetch(actionUrl('getLogs', { instanceId: currentInstanceId }));
+                if (res.ok) {
+                    const logs = await res.text();
+                    const logEl = document.getElementById('logPreview');
+                    logEl.textContent = logs || '暂无日志';
+                    // 自动滚动到底部
+                    logEl.scrollTop = logEl.scrollHeight;
+                }
+            } catch (e) {
+                document.getElementById('logPreview').textContent = '日志加载失败';
+            }
+        }
+
+        async function clearLogs() {
+            showConfirm({
+                title: '清空日志',
+                message: '确定要清空所有日志吗？',
+                confirmText: '清空',
+                confirmClass: 'btn-dan',
+                onConfirm: async function() {
+                try {
+                    const res = await fetch(actionUrl('clearLogs', { instanceId: currentInstanceId }), { method: 'POST' });
+                    if (res.ok) {
+                        showToast('日志已清空', 'success');
+                        updateLogPreview();
+                    }
+                } catch (e) {
+                    showToast('清空日志失败', 'error');
+                }
+            }});
+        }
+
+        async function updateLogConfigForm() {
+            try {
+                const res = await fetch(actionUrl('getConfig', { instanceId: currentInstanceId }));
+                if (res.ok) {
+                    const config = await res.json();
+                    document.getElementById('logLevel').value = config.logLevel || '';
+                    document.getElementById('logMaxDays').value = config.logMaxDays || '';
+                }
+            } catch (e) {
+                console.log('Load log config error:', e);
+            }
+        }
+
+        async function saveLogConfig() {
+            const logLevel = document.getElementById('logLevel').value;
+            const logMaxDays = parseInt(document.getElementById('logMaxDays').value) || 0;
+
+            try {
+                const res = await fetch('?action=saveLogConfig', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(instancePayload({ logLevel, logMaxDays }))
+                });
+                if (res.ok) {
+                    if (isCurrentInstanceEnabled()) {
+                        const restartRes = await fetch(actionUrl('restart', { instanceId: currentInstanceId }));
+                        const restartData = await restartRes.json();
+                        if (!restartData.success) {
+                            showToast(restartData.error || '日志配置已保存，但重启失败', 'error');
+                            return;
+                        }
+                        showToast(restartData.message || '日志配置已保存，服务正在重启', 'success');
+                    } else {
+                        showToast('日志配置已保存，当前配置已禁用，未启动', 'success');
+                    }
+                    setTimeout(() => {
+                        updateLogPreview();
+                        updateConfigPreview();
+                    }, 1000);
+                } else {
+                    showToast('保存日志配置失败', 'error');
+                }
+            } catch (e) {
+                showToast('保存日志配置失败', 'error');
+            }
+        }
+
+        async function openConfigEditor() {
+            // 直接读取配置文件内容，保持用户的注释和格式
+            try {
+                const res = await fetch(actionUrl('getRawConfig', { instanceId: currentInstanceId }));
+                if (res.ok) {
+                    const config = await res.text();
+                    document.getElementById('configEditor').value = config;
+                } else {
+                    updateConfigPreview();
+                    document.getElementById('configEditor').value = document.getElementById('configPreview').textContent;
+                }
+            } catch (e) {
+                updateConfigPreview();
+                document.getElementById('configEditor').value = document.getElementById('configPreview').textContent;
+            }
+            document.getElementById('configModal').classList.add('show');
+        }
+
+        function closeConfigEditor() {
+            document.getElementById('configModal').classList.remove('show');
+        }
+
+        async function refreshCurrentInstanceAfterSave(savedInstanceId) {
+            const activeInstanceId = currentInstanceId;
+            await loadInstances(activeInstanceId);
+            if (currentInstanceId !== activeInstanceId || activeInstanceId !== savedInstanceId) {
+                return;
+            }
+            await getConfig();
+            await checkStatus();
+            if (curTab === 'log') {
+                updateLogPreview();
+            }
+        }
+
+        async function saveConfig(message = '保存成功，服务正在重启', applyMode = 'restart') {
+            if (applyMode === 'restart' && !ensureManualSaveAllowed()) {
+                return;
+            }
+            const savedInstanceId = currentInstanceId;
+            const configData = {
+                instanceId: savedInstanceId,
+                applyMode,
+                serverAddr: document.getElementById('serverAddr').value,
+                serverPort: parseInt(document.getElementById('serverPort').value),
+                authToken: document.getElementById('authToken').value,
+                protocol: document.getElementById('protocol').value,
+                wireProtocolEnabled: document.getElementById('wireProtocolEnabled').checked,
+                wireProtocol: document.getElementById('wireProtocol').value,
+                natHoleStunServer: document.getElementById('natHoleStunServer').value,
+                tcpMux: document.getElementById('tcpMux').checked,
+                heartbeatInterval: parseInt(document.getElementById('heartbeatInterval').value) || 0,
+                heartbeatTimeout: parseInt(document.getElementById('heartbeatTimeout').value) || 0,
+                tcpMuxKeepaliveInterval: parseInt(document.getElementById('tcpMuxKeepaliveInterval').value) || 0,
+                proxies: proxies
+            };
+            try {
+                saveActionPending = true;
+                updateManualSaveCooldownUI();
+                showToast(applyMode === 'restart' ? '正在保存并重启，请稍候...' : '正在保存配置，请稍候...', 'success');
+                const res = await fetch('?action=saveConfig', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(configData)
+                });
+                const r = await res.json();
+                if (r.success) {
+                    if (applyMode === 'restart') {
+                        startManualSaveCooldown(10);
+                    }
+                    const savedInstance = instances.find(x => x.id === savedInstanceId);
+                    if (savedInstance) {
+                        savedInstance.hasConfig = true;
+                    }
+                    refreshInstanceActions();
+                    renderInstanceSwitcher();
+                    showToast(r.message || message, 'success');
+                    setTimeout(() => {
+                        refreshCurrentInstanceAfterSave(savedInstanceId).catch(() => {});
+                    }, 1200);
+                } else {
+                    showToast('保存失败: ' + (r.error || '未知错误'), 'error');
+                }
+            } finally {
+                saveActionPending = false;
+                updateManualSaveCooldownUI();
+            }
+        }
+
+        async function saveConfigRaw() {
+            if (!ensureManualSaveAllowed()) {
+                return;
+            }
+            const raw = document.getElementById('configEditor').value;
+            const savedInstanceId = currentInstanceId;
+            try {
+                saveActionPending = true;
+                updateManualSaveCooldownUI();
+                showToast('正在保存并重启，请稍候...', 'success');
+                const res = await fetch('?action=saveConfig', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ instanceId: savedInstanceId, config: raw, applyMode: 'restart' })
+                });
+                const r = await res.json();
+                if (r.success) {
+                    startManualSaveCooldown(10);
+                    closeConfigEditor();
+                    const savedInstance = instances.find(x => x.id === savedInstanceId);
+                    if (savedInstance) {
+                        savedInstance.hasConfig = true;
+                    }
+                    refreshInstanceActions();
+                    renderInstanceSwitcher();
+                    showToast(r.message || '配置保存成功，服务正在重启', 'success');
+                    setTimeout(() => {
+                        refreshCurrentInstanceAfterSave(savedInstanceId).catch(() => {});
+                    }, 1200);
+                } else {
+                    showToast('保存失败: ' + (r.error || '未知错误'), 'error');
+                }
+            } finally {
+                saveActionPending = false;
+                updateManualSaveCooldownUI();
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const res = await fetch(actionUrl('status', { instanceId: currentInstanceId }));
+                const data = await res.json();
+                const dot = document.getElementById('instanceConnectionDot');
+                const txt = document.getElementById('instanceConnectionText');
+                const level = data.message === '运行中'
+                    ? 'success'
+                    : (data.level || (data.connected ? 'success' : (data.running ? 'warning' : 'offline')));
+                const loadingSeconds = parseInt(data.loadingSeconds || 0, 10) || 0;
+                runtimeLoadingUntil = loadingSeconds > 0 ? Date.now() + loadingSeconds * 1000 : 0;
+                dot.className = `dot ${level}`;
+                txt.className = `instance-status-text ${level}`;
+                txt.textContent = data.message || '未连接';
+                updateManualSaveCooldownUI();
+            } catch (e) {}
+        }
+
+        const savedTheme = localStorage.getItem('frpc-theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark');
+        }
+
+        loadInstances().then(() => getConfig()).then(() => checkStatus());
+        setInterval(checkStatus, 3000);
+    </script>
+</body>
+</html>

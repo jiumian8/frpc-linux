@@ -3,17 +3,15 @@
 # 适用：Debian 12 / 13（x86_64），无需 Docker
 # 访问：http://服务器IP:9999
 #
-# 把仓库放到 GitHub 后，把下面 GITHUB_REPO 改成你的 用户名/仓库名
-# 然后在服务器执行：
-#   curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/用户名/仓库名/main/install.sh -o install.sh
+# 仓库: https://github.com/jiumian8/frpc-linux
+# 服务器执行：
+#   curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh
 #   sudo bash install.sh
 
 set -euo pipefail
 
-# ========== 改成你的 GitHub 仓库 ==========
-GITHUB_REPO="${FRPC_WEB_REPO:-}"
+GITHUB_REPO="${FRPC_WEB_REPO:-jiumian8/frpc-linux}"
 GITHUB_BRANCH="${FRPC_WEB_BRANCH:-main}"
-# ========================================
 
 APP_NAME="frpc客户端"
 APP_ROOT="/var/apps/frpc"
@@ -272,17 +270,7 @@ local_payload_ok() {
 }
 
 ask_github_repo() {
-    local value=""
-    if [ -n "${GITHUB_REPO}" ]; then
-        return 0
-    fi
-    echo
-    warn "脚本里还没填写 GitHub 仓库"
-    if ! read_input "请输入仓库，格式 用户名/仓库名: " value; then
-        die "未设置 GITHUB_REPO。请编辑 install.sh 顶部，或设置环境变量 FRPC_WEB_REPO=用户名/仓库名"
-    fi
-    GITHUB_REPO="$(printf '%s' "${value}" | tr -d '[:space:]')"
-    [ -n "${GITHUB_REPO}" ] || die "GitHub 仓库不能为空"
+    [ -n "${GITHUB_REPO}" ] || GITHUB_REPO="jiumian8/frpc-linux"
 }
 
 download_payload_from_github() {
@@ -750,7 +738,9 @@ usage() {
   sudo bash $0 3        检测更新
   sudo bash $0 2 --purge
 
-GitHub 一键安装前，先改脚本顶部 GITHUB_REPO=用户名/仓库名
+GitHub 一键安装:
+  curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh
+  sudo bash install.sh
 
 加速源:
   1) https://gh-proxy.org
@@ -774,5 +764,18 @@ case "${ACTION}" in
     1|install) shift || true; do_install "$@" ;;
     2|uninstall|remove) shift || true; do_uninstall "$@" ;;
     3|update|check-update) shift || true; do_update "$@" ;;
+    *) usage; die "未知参数: ${ACTION}" ;;
+esac
+hift || true; do_update "$@" ;;
+    *) usage; die "未知参数: ${ACTION}" ;;
+esac
+ACTION}" in
+    "") run_menu ;;
+    1|install) shift || true; do_install "$@" ;;
+    2|uninstall|remove) shift || true; do_uninstall "$@" ;;
+    3|update|check-update) shift || true; do_update "$@" ;;
+    *) usage; die "未知参数: ${ACTION}" ;;
+esac
+hift || true; do_update "$@" ;;
     *) usage; die "未知参数: ${ACTION}" ;;
 esac

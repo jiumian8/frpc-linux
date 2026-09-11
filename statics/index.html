@@ -300,6 +300,7 @@
                         </div>
                         <button class="btn btn-ghost btn-sm" onclick="openSwitchInstanceModal()">🔄 切换配置</button>
                         <button class="btn btn-ghost btn-sm" onclick="openCreateInstanceModal()">➕️ 新建配置</button>
+                        <button class="btn btn-ghost btn-sm" onclick="logoutWeb()">退出登录</button>
                     </div>
                     <div class="instance-current">
                         <div class="instance-current-main">
@@ -739,6 +740,10 @@
         function actionUrl(action, extra = {}) {
             const params = new URLSearchParams({ action, ...extra });
             return '?' + params.toString();
+        }
+
+        function logoutWeb() {
+            location.replace('/logout');
         }
 
         function instancePayload(extra = {}) {

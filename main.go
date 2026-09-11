@@ -829,6 +829,9 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		handleLogout(w, r)
 		return
 	}
+	if servePublicAsset(w, r) {
+		return
+	}
 	if !authRequired(w, r) {
 		return
 	}

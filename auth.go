@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -434,6 +435,51 @@ func writeJSON(w http.ResponseWriter, status int, payload map[string]interface{}
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+func publicAssetName(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.ReplaceAll(raw, "\\", "/")
+	if i := strings.IndexByte(raw, '?'); i >= 0 {
+		raw = raw[:i]
+	}
+	raw = strings.TrimPrefix(raw, "/")
+	switch raw {
+	case "favicon.ico", "favicon.png", "logo.png", "icon.png",
+		"statics/favicon.png", "statics/logo.png", "statics/icon.png":
+		if strings.HasPrefix(raw, "statics/") {
+			return raw, true
+		}
+		if raw == "favicon.ico" {
+			return "statics/favicon.png", true
+		}
+		return "statics/" + raw, true
+	default:
+		return "", false
+	}
+}
+
+func servePublicAsset(w http.ResponseWriter, r *http.Request) bool {
+	name, ok := publicAssetName(r.URL.Path)
+	if !ok {
+		return false
+	}
+	body, err := readUIFile(name)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png":
+		w.Header().Set("Content-Type", "image/png")
+	case ".ico":
+		w.Header().Set("Content-Type", "image/x-icon")
+	default:
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Write(body)
+	return true
+}
+
 func serveLoginPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := currentUser(r); ok {
 		http.Redirect(w, r, safeNextPath(r.URL.Query().Get("next")), http.StatusFound)
@@ -509,6 +555,44 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {
+	clearSessionCookie(w)
+	if r.Header.Get("Accept") == "application/json" {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"success": true})
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+func authRequired(w http.ResponseWriter, r *http.Request) bool {
+	if _, ok := currentUser(r); ok {
+		if !sameOrigin(r) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return false
+		}
+		return true
+	}
+	if r.Header.Get("Accept") == "application/json" || r.URL.Query().Get("action") != "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]interface{}{"success": false, "error": "未登录"})
+		return false
+	}
+	http.Redirect(w, r, loginURL(r.URL.RequestURI()), http.StatusFound)
+	return false
+}
+
+func safeStaticPath(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	raw = strings.ReplaceAll(raw, "\\", "/")
+	raw = strings.TrimPrefix(raw, "/")
+	if raw == "" || strings.Contains(raw, "..") || strings.Contains(raw, "\x00") {
+		return "", false
+	}
+	clean := path.Clean("/" + raw)
+	if clean != "/statics" && !strings.HasPrefix(clean, "/statics/") {
+		return "", false
+	}
+	return strings.TrimPrefix(clean, "/"), true
+}
+ {
 	clearSessionCookie(w)
 	if r.Header.Get("Accept") == "application/json" {
 		writeJSON(w, http.StatusOK, map[string]interface{}{"success": true})

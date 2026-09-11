@@ -357,7 +357,7 @@ find_dir() {
 }
 
 local_payload_ok() {
-    [ -f "${SRC_DIR}/main.go" ] && [ -f "${SRC_DIR}/auth.go" ] && [ -f "${SRC_DIR}/go.mod" ] && [ -f "${SRC_DIR}/restart.sh" ] && [ -f "${SRC_DIR}/statics/index.html" ] && [ -f "${SRC_DIR}/statics/login.html" ]
+    [ -f "${SRC_DIR}/main.go" ] && [ -f "${SRC_DIR}/auth.go" ] && [ -f "${SRC_DIR}/go.mod" ] && [ -f "${SRC_DIR}/restart.sh" ] && [ -f "${SRC_DIR}/statics/index.html" ] && [ -f "${SRC_DIR}/statics/login.html" ] && [ -f "${SRC_DIR}/statics/logo.png" ] && [ -f "${SRC_DIR}/statics/favicon.png" ]
 }
 
 ask_github_repo() {
@@ -864,8 +864,7 @@ usage() {
   sudo bash $0 2 --purge
 
 GitHub 一键安装:
-  curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh
-  sudo bash install.sh
+  curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh && sudo bash install.sh
 
 加速源:
   1) https://gh-proxy.org

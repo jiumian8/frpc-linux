@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <title>登录 - frpc客户端</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <link rel="apple-touch-icon" href="/logo.png">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -40,6 +42,21 @@
             border: 1px solid var(--border);
             box-shadow: 0 22px 54px rgba(15,23,42,0.14);
             backdrop-filter: blur(24px);
+        }
+        .brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .brand img {
+            width: 72px;
+            height: 72px;
+            border-radius: 22px;
+            display: block;
+            margin-bottom: 12px;
+            box-shadow: 0 10px 24px rgba(37,99,235,0.28);
         }
         h1 { font-size: 22px; margin-bottom: 6px; }
         .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
@@ -82,7 +99,10 @@
 </head>
 <body>
     <form class="card" id="loginForm" autocomplete="off">
-        <h1>frpc客户端</h1>
+        <div class="brand">
+            <img src="/logo.png" alt="frpc客户端">
+            <h1>frpc客户端</h1>
+        </div>
         <p class="sub">请输入安装时设置的账号密码</p>
         <div class="err" id="errBox"></div>
         <label for="username">用户名</label>

@@ -1,4 +1,4 @@
-# frpc客户端
+# frpc客户端 （改自徐大大的飞牛frpc项目 感谢徐大大的支持❤️）
 
 在 Debian 12 / 13（x86_64）上运行的 frpc Web 管理面板。不需要 Docker。
 
@@ -20,9 +20,7 @@
 必须用 root：
 
 ```bash
-cd /root
-curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh
-sudo bash install.sh
+curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh && sudo bash install.sh
 ```
 
 菜单：
@@ -139,9 +137,7 @@ yaml.min.js
 把最新文件推到 GitHub，再在服务器执行：
 
 ```bash
-cd /root
-curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh
-sudo bash install.sh
+curl -fsSL https://gh-proxy.org/https://raw.githubusercontent.com/jiumian8/frpc-linux/main/install.sh -o install.sh && sudo bash install.sh
 ```
 
 选 `1` 安装。如果已有登录账号，脚本会问是否重新设置。

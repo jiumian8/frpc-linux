@@ -10,6 +10,10 @@
 
 set -euo pipefail
 
+export HOME="${HOME:-/root}"
+export USER="${USER:-root}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}"
+
 GITHUB_REPO="${FRPC_WEB_REPO:-jiumian8/frpc-linux}"
 GITHUB_BRANCH="${FRPC_WEB_BRANCH:-main}"
 
@@ -334,6 +338,16 @@ ensure_runtime_tools() {
     fi
 }
 
+setup_go_env() {
+    export HOME="/root"
+    export USER="root"
+    export XDG_CACHE_HOME="/root/.cache"
+    export GOCACHE="${APP_ROOT}/build/.gocache"
+    export GOPATH="${APP_ROOT}/build/.gopath"
+    export GOTMPDIR="${APP_ROOT}/build/.gotmp"
+    mkdir -p /root /root/.cache "${GOCACHE}" "${GOPATH}" "${GOTMPDIR}"
+}
+
 ensure_build_deps() {
     ensure_runtime_tools
     if ! command -v go >/dev/null 2>&1; then
@@ -341,6 +355,7 @@ ensure_build_deps() {
         apt_install golang-go
     fi
     command -v go >/dev/null 2>&1 || die "未找到 go，请先: apt-get install -y golang-go"
+    setup_go_env
 }
 
 normalize_version() {
@@ -472,23 +487,28 @@ EOF
 }
 
 compile_ui() {
+    local gocache gopath gotmp
     log "编译 Web UI"
-    mkdir -p "${APP_ROOT}/build" "${UI_ROOT}"
+    gocache="${APP_ROOT}/build/.gocache"
+    gopath="${APP_ROOT}/build/.gopath"
+    gotmp="${APP_ROOT}/build/.gotmp"
+    mkdir -p "${APP_ROOT}/build" "${UI_ROOT}" /root /root/.cache "${gocache}" "${gopath}" "${gotmp}"
     setup_go_env
     install -m 0644 "${MAIN_GO}" "${APP_ROOT}/build/main.go"
     install -m 0644 "${GO_MOD}" "${APP_ROOT}/build/go.mod"
-    (
-        cd "${APP_ROOT}/build"
-        export HOME="${HOME:-/root}"
-        export GOCACHE="${GOCACHE}"
-        export GOPATH="${GOPATH}"
-        export GOTMPDIR="${GOTMPDIR}"
-        export CGO_ENABLED=0
-        export GO111MODULE=on
-        export GOPROXY=off
-        export GOSUMDB=off
+    cd "${APP_ROOT}/build"
+    HOME=/root \
+    USER=root \
+    XDG_CACHE_HOME=/root/.cache \
+    GOCACHE="${gocache}" \
+    GOPATH="${gopath}" \
+    GOTMPDIR="${gotmp}" \
+    CGO_ENABLED=0 \
+    GO111MODULE=on \
+    GOPROXY=off \
+    GOSUMDB=off \
+    /usr/bin/env HOME=/root GOCACHE="${gocache}" GOPATH="${gopath}" GOTMPDIR="${gotmp}" XDG_CACHE_HOME=/root/.cache \
         go build -trimpath -ldflags '-s -w' -o "${UI_ROOT}/index.cgi" .
-    )
     chmod 0755 "${UI_ROOT}/index.cgi"
     [ -x "${UI_ROOT}/index.cgi" ] || die "UI 编译失败"
 }

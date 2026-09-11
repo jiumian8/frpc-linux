@@ -703,9 +703,9 @@ do_install() {
     fi
 
     log "开始安装 ${APP_NAME}"
-    stop_existing
     install_files
     compile_ui
+    stop_existing
     write_default_env
     write_systemd
     open_firewall

@@ -480,6 +480,10 @@ func servePublicAsset(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+func fallbackLoginPage() []byte {
+	return []byte(`<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>登录 - frpc客户端</title><link rel="icon" type="image/png" href="/favicon.png"><style>body{font-family:"Microsoft YaHei",sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#eef4ff;margin:0}.card{width:100%;max-width:400px;padding:28px;border-radius:24px;background:#fff;box-shadow:0 22px 54px rgba(15,23,42,.14)}h1{margin:0 0 8px}p{color:#64748b}label{display:block;margin:12px 0 6px}input{width:100%;height:44px;border:1px solid #cbd5e1;border-radius:12px;padding:0 12px;box-sizing:border-box}button{width:100%;height:44px;margin-top:16px;border:0;border-radius:12px;background:#6366f1;color:#fff;font-weight:700}.err{display:none;color:#b91c1c;margin:8px 0}</style></head><body><form class="card" id="loginForm"><h1>frpc客户端</h1><p>请输入安装时设置的账号密码</p><div class="err" id="errBox"></div><label>用户名</label><input id="username" required><label>密码</label><input id="password" type="password" required><button type="submit">登录</button></form><script>document.getElementById("loginForm").addEventListener("submit",async e=>{e.preventDefault();const err=document.getElementById("errBox");err.style.display="none";try{const res=await fetch("/login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({username:document.getElementById("username").value.trim(),password:document.getElementById("password").value})});const data=await res.json().catch(()=>({}));if(!res.ok||!data.success)throw new Error(data.error||"登录失败");location.replace("/");}catch(x){err.textContent=x.message||"登录失败";err.style.display="block";}});</script></body></html>`)
+}
+
 func serveLoginPage(w http.ResponseWriter, r *http.Request) {
 	if _, ok := currentUser(r); ok {
 		http.Redirect(w, r, safeNextPath(r.URL.Query().Get("next")), http.StatusFound)
@@ -487,8 +491,7 @@ func serveLoginPage(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := readUIFile("statics/login.html")
 	if err != nil {
-		http.Error(w, "login page missing", http.StatusInternalServerError)
-		return
+		body = fallbackLoginPage()
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -564,6 +567,9 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func authRequired(w http.ResponseWriter, r *http.Request) bool {
+	if !webAuthOK {
+		return true
+	}
 	if _, ok := currentUser(r); ok {
 		if !sameOrigin(r) {
 			http.Error(w, "forbidden", http.StatusForbidden)

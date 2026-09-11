@@ -104,34 +104,6 @@ sudo bash /root/install.sh
 sudo bash install.sh 2 --purge
 ```
 
-## 仓库文件
-
-根目录应包含：
-
-```text
-install.sh
-README.md
-main.go
-auth.go
-go.mod
-restart.sh
-statics/
-```
-
-`statics/` 里至少要有：
-
-```text
-index.html
-login.html
-codemirror.min.css
-codemirror.min.js
-dracula.min.css
-toml.min.js
-yaml.min.js
-```
-
-不需要上传原来的飞牛包、`frpc` 二进制或 `.fpk`。`frpc` 安装时会自动下载。
-
 ## 更新本仓库后如何重新安装
 
 把最新文件推到 GitHub，再在服务器执行：

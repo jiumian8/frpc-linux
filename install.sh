@@ -29,6 +29,8 @@ SERVICE_NAME="frpc-web"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 DEFAULT_FILE="/etc/default/${SERVICE_NAME}"
 PROXY_FILE="${APP_ROOT}/github-proxy.conf"
+AUTH_FILE="${VAR_ROOT}/auth.json"
+BOOTSTRAP_AUTH_FILE="${VAR_ROOT}/auth.bootstrap"
 UI_LISTEN=":9999"
 UI_PORT="9999"
 FRP_REPO="fatedier/frp"
@@ -42,16 +44,16 @@ PROXY_OPTIONS=(
     "https://axisnow.gh-proxy.org"
 )
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+NC=$'\033[0m'
 
-log()  { printf '%b\n' "${GREEN}[+]${NC} $*"; }
-warn() { printf '%b\n' "${YELLOW}[!]${NC} $*"; }
-err()  { printf '%b\n' "${RED}[x]${NC} $*" >&2; }
+log()  { printf '%s\n' "${GREEN}[+]${NC} $*"; }
+warn() { printf '%s\n' "${YELLOW}[!]${NC} $*"; }
+err()  { printf '%s\n' "${RED}[x]${NC} $*" >&2; }
 die()  { err "$*"; exit 1; }
 
 SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || printf '%s' "$0")"
@@ -150,7 +152,7 @@ choose_proxy() {
     fi
 
     echo
-    printf '%b\n' "${CYAN}${BOLD}请选择 GitHub 加速源${NC}"
+    printf '%s\n' "${CYAN}${BOLD}请选择 GitHub 加速源${NC}"
     if load_saved_proxy; then
         saved="${GH_PROXY}"
         if [ -n "${saved}" ]; then
@@ -193,6 +195,91 @@ choose_proxy() {
         log "已选择 GitHub 直连"
     fi
     save_proxy
+}
+
+json_escape() {
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '"%s"' "${s}"
+}
+
+write_bootstrap_auth() {
+    local user="$1" pass="$2"
+    mkdir -p "${VAR_ROOT}"
+    umask 077
+    cat > "${BOOTSTRAP_AUTH_FILE}" <<EOF
+{"username":$(json_escape "${user}"),"password":$(json_escape "${pass}")}
+EOF
+    chmod 0600 "${BOOTSTRAP_AUTH_FILE}"
+}
+
+ask_web_auth() {
+    local user="" pass="" pass2="" reset="n"
+    mkdir -p "${VAR_ROOT}"
+    echo
+    printf '%s\n' "${CYAN}${BOLD}设置网页登录账号${NC}"
+    echo "  打开页面时需要输入这对账号密码"
+    echo
+
+    if [ -f "${AUTH_FILE}" ] || [ -f "${BOOTSTRAP_AUTH_FILE}" ]; then
+        read_input "检测到已有登录账号，是否重新设置？[y/N] " reset || true
+        case "${reset}" in
+            y|Y|yes|YES) ;;
+            *) log "保留现有网页登录账号"; return 0 ;;
+        esac
+    fi
+
+    while true; do
+        read_input "用户名: " user || true
+        user="$(printf '%s' "${user}" | tr -d '[:space:]')"
+        case "${user}" in
+            "") warn "用户名不能为空" ;;
+            *[!A-Za-z0-9._-]*) warn "用户名只能包含字母、数字、点、下划线和中划线" ;;
+            *)
+                if [ "${#user}" -lt 3 ] || [ "${#user}" -gt 32 ]; then
+                    warn "用户名长度需要 3-32 位"
+                else
+                    break
+                fi
+                ;;
+        esac
+    done
+
+    while true; do
+        if [ -t 0 ]; then
+            read -r -s -p "密码: " pass || true
+            echo
+            read -r -s -p "确认密码: " pass2 || true
+            echo
+        elif [ -r /dev/tty ]; then
+            read -r -s -p "密码: " pass < /dev/tty || true
+            echo > /dev/tty
+            read -r -s -p "确认密码: " pass2 < /dev/tty || true
+            echo > /dev/tty
+        else
+            die "无法交互输入密码，请在终端运行安装脚本"
+        fi
+        if [ -z "${pass}" ]; then
+            warn "密码不能为空"
+            continue
+        fi
+        if [ "${#pass}" -lt 8 ]; then
+            warn "密码至少 8 位"
+            continue
+        fi
+        if [ "${pass}" != "${pass2}" ]; then
+            warn "两次密码不一致"
+            continue
+        fi
+        break
+    done
+
+    write_bootstrap_auth "${user}" "${pass}"
+    log "已保存网页登录账号: ${user}"
 }
 
 proxy_candidates() {
@@ -270,7 +357,7 @@ find_dir() {
 }
 
 local_payload_ok() {
-    [ -f "${SRC_DIR}/main.go" ] && [ -f "${SRC_DIR}/go.mod" ] && [ -f "${SRC_DIR}/restart.sh" ] && [ -f "${SRC_DIR}/statics/index.html" ]
+    [ -f "${SRC_DIR}/main.go" ] && [ -f "${SRC_DIR}/auth.go" ] && [ -f "${SRC_DIR}/go.mod" ] && [ -f "${SRC_DIR}/restart.sh" ] && [ -f "${SRC_DIR}/statics/index.html" ] && [ -f "${SRC_DIR}/statics/login.html" ]
 }
 
 ask_github_repo() {
@@ -317,6 +404,8 @@ check_payload() {
     RESTART_SH="$(find_file restart.sh)" || die "缺少 restart.sh"
     STATICS_DIR="$(find_dir statics)" || die "缺少 statics 目录"
     [ -f "${STATICS_DIR}/index.html" ] || die "statics/index.html 不存在"
+    [ -f "${STATICS_DIR}/login.html" ] || die "statics/login.html 不存在"
+    [ -f "${SRC_DIR}/auth.go" ] || die "缺少 auth.go"
     LOCAL_FRPC="$(find_file frpc || true)"
 }
 
@@ -424,9 +513,18 @@ stop_existing() {
     pkill -f "${FRPC_BIN}" >/dev/null 2>&1 || true
 }
 
+copy_go_sources() {
+    local dest="$1" f
+    mkdir -p "${dest}"
+    for f in "${SRC_DIR}"/*.go; do
+        [ -f "${f}" ] || continue
+        install -m 0644 "${f}" "${dest}/$(basename "${f}")"
+    done
+}
+
 save_payload() {
     mkdir -p "${APP_ROOT}/payload"
-    install -m 0644 "${MAIN_GO}" "${APP_ROOT}/payload/main.go"
+    copy_go_sources "${APP_ROOT}/payload"
     install -m 0644 "${GO_MOD}" "${APP_ROOT}/payload/go.mod"
     install -m 0755 "${RESTART_SH}" "${APP_ROOT}/payload/restart.sh"
     if [ -f "${SCRIPT_PATH}" ] && [ -s "${SCRIPT_PATH}" ]; then
@@ -494,8 +592,8 @@ compile_ui() {
     gotmp="${APP_ROOT}/build/.gotmp"
     mkdir -p "${APP_ROOT}/build" "${UI_ROOT}" /root /root/.cache "${gocache}" "${gopath}" "${gotmp}"
     setup_go_env
-    install -m 0644 "${MAIN_GO}" "${APP_ROOT}/build/main.go"
     install -m 0644 "${GO_MOD}" "${APP_ROOT}/build/go.mod"
+    copy_go_sources "${APP_ROOT}/build"
     cd "${APP_ROOT}/build"
     HOME=/root \
     USER=root \
@@ -595,6 +693,7 @@ do_install() {
     detect_os
     detect_arch
     choose_proxy
+    ask_web_auth
     ensure_build_deps
     prepare_payload
     check_payload
@@ -624,10 +723,11 @@ do_install() {
 
     echo
     log "安装完成"
-    echo "  访问地址:  ${CYAN}http://$(host_ip):${UI_PORT}${NC}"
-    echo "  frpc版本:  $(installed_frpc_version "${FRPC_BIN}" || echo 未知)"
-    echo "  加速源:    ${GH_PROXY:-GitHub 直连}"
-    echo "  配置目录:  ${CONFIG_ROOT}"
+    printf '%s\n' "  访问地址:  ${CYAN}http://$(host_ip):${UI_PORT}${NC}"
+    printf '%s\n' "  登录方式:  网页账号密码（安装时设置）"
+    printf '%s\n' "  frpc版本:  $(installed_frpc_version "${FRPC_BIN}" || echo 未知)"
+    printf '%s\n' "  加速源:    ${GH_PROXY:-GitHub 直连}"
+    printf '%s\n' "  配置目录:  ${CONFIG_ROOT}"
     echo
 }
 
@@ -726,9 +826,9 @@ show_menu() {
     local current="未安装"
     [ -x "${FRPC_BIN}" ] && current="$(installed_frpc_version "${FRPC_BIN}" || echo 已安装)"
     echo
-    printf '%b\n' "${CYAN}${BOLD}================================${NC}"
-    printf '%b\n' "${CYAN}${BOLD}        frpc客户端 管理脚本${NC}"
-    printf '%b\n' "${CYAN}${BOLD}================================${NC}"
+    printf '%s\n' "${CYAN}${BOLD}================================${NC}"
+    printf '%s\n' "${CYAN}${BOLD}        frpc客户端 管理脚本${NC}"
+    printf '%s\n' "${CYAN}${BOLD}================================${NC}"
     echo "  当前版本: ${current}"
     echo "  访问地址: http://$(host_ip 2>/dev/null || echo 服务器IP):${UI_PORT}"
     echo
@@ -758,7 +858,7 @@ usage() {
     cat <<EOF
 用法:
   sudo bash $0          打开菜单：1 安装 / 2 卸载 / 3 检测更新
-  sudo bash $0 1        安装（会先选择加速源）
+  sudo bash $0 1        安装（会先选择加速源和网页密码）
   sudo bash $0 2        卸载
   sudo bash $0 3        检测更新
   sudo bash $0 2 --purge
@@ -789,24 +889,5 @@ case "${ACTION}" in
     1|install) shift || true; do_install "$@" ;;
     2|uninstall|remove) shift || true; do_uninstall "$@" ;;
     3|update|check-update) shift || true; do_update "$@" ;;
-    *) usage; die "未知参数: ${ACTION}" ;;
-esac
-hift || true; do_update "$@" ;;
-    *) usage; die "未知参数: ${ACTION}" ;;
-esac
-ACTION}" in
-    "") run_menu ;;
-    1|install) shift || true; do_install "$@" ;;
-    2|uninstall|remove) shift || true; do_uninstall "$@" ;;
-    3|update|check-update) shift || true; do_update "$@" ;;
-    *) usage; die "未知参数: ${ACTION}" ;;
-esac
-hift || true; do_update "$@" ;;
-    *) usage; die "未知参数: ${ACTION}" ;;
-esac
-hift || true; do_update "$@" ;;
-    *) usage; die "未知参数: ${ACTION}" ;;
-esac
-hift || true; do_update "$@" ;;
     *) usage; die "未知参数: ${ACTION}" ;;
 esac

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>登录 - frpc客户端</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #eef4ff;
+            --bg2: #dce8ff;
+            --surface: rgba(255,255,255,0.72);
+            --border: rgba(255,255,255,0.34);
+            --text: #1e293b;
+            --muted: #64748b;
+            --primary: #6366f1;
+            --danger: #ef4444;
+            --font-sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+        }
+        body {
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background:
+                radial-gradient(circle at top left, rgba(99,102,241,0.28), transparent 28%),
+                radial-gradient(circle at top right, rgba(96,165,250,0.24), transparent 24%),
+                linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+        }
+        .card {
+            width: 100%;
+            max-width: 400px;
+            padding: 28px 26px 24px;
+            border-radius: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: 0 22px 54px rgba(15,23,42,0.14);
+            backdrop-filter: blur(24px);
+        }
+        h1 { font-size: 22px; margin-bottom: 6px; }
+        .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        input {
+            width: 100%;
+            height: 44px;
+            border-radius: 12px;
+            border: 1px solid rgba(148,163,184,0.45);
+            background: rgba(255,255,255,0.75);
+            padding: 0 12px;
+            font: inherit;
+            margin-bottom: 14px;
+            outline: none;
+        }
+        input:focus { border-color: rgba(99,102,241,0.7); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+        button {
+            width: 100%;
+            height: 44px;
+            border: 0;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .err {
+            display: none;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(239,68,68,0.1);
+            color: #b91c1c;
+            font-size: 13px;
+        }
+        .err.show { display: block; }
+    </style>
+</head>
+<body>
+    <form class="card" id="loginForm" autocomplete="off">
+        <h1>frpc客户端</h1>
+        <p class="sub">请输入安装时设置的账号密码</p>
+        <div class="err" id="errBox"></div>
+        <label for="username">用户名</label>
+        <input id="username" name="username" maxlength="32" required autofocus>
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" maxlength="128" required>
+        <button type="submit" id="submitBtn">登录</button>
+    </form>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const next = params.get("next") || "/";
+        const form = document.getElementById("loginForm");
+        const errBox = document.getElementById("errBox");
+        const submitBtn = document.getElementById("submitBtn");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            errBox.classList.remove("show");
+            submitBtn.disabled = true;
+            try {
+                const res = await fetch("/login", {
+                    method: "POST",
+                    credentials: "same-origin",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({
+                        username: document.getElementById("username").value.trim(),
+                        password: document.getElementById("password").value
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || "登录失败");
+                }
+                const target = next.startsWith("/") && !next.startsWith("//") ? next : "/";
+                location.replace(target);
+            } catch (err) {
+                errBox.textContent = err.message || "登录失败";
+                errBox.classList.add("show");
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # frpc客户端 （改自徐大大的飞牛frpc项目 感谢徐大大的支持❤️）
 
-在 Debian 12 / 13（x86_64）上运行的 frpc Web 管理面板。不需要 Docker。
+在 Debian 12 / 13（x86_64）上运行的 frpc Web 管理面板。
 
 打开网页：`http://服务器IP:9999`
 

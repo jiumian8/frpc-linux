@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -663,8 +663,18 @@ func useUnixSocketListener() bool {
 	return strings.TrimSpace(os.Getenv("FRPC_UI_SOCKET")) != ""
 }
 
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func newUIServer() *http.Server {
-	return &http.Server{Handler: recoverMiddleware(http.HandlerFunc(handleRequest))}
+	return &http.Server{Handler: recoverMiddleware(securityHeaders(http.HandlerFunc(handleRequest)))}
 }
 
 func watchUIShutdown(server *http.Server) (stop func()) {
@@ -790,6 +800,11 @@ func main() {
 	} else {
 		log.SetOutput(os.Stdout)
 	}
+	if err := initWebAuth(); err != nil {
+		log.Printf("init web auth failed: %v", err)
+		fmt.Println("Error initializing web auth:", err)
+		os.Exit(1)
+	}
 	if err := serveUIServer(); err != nil {
 		log.Printf("ui server exited with error: %v", err)
 		fmt.Println("Error running UI server:", err)
@@ -804,6 +819,17 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 			target = "/?" + r.URL.RawQuery
 		}
 		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
+	if r.URL.Path == "/login" {
+		handleLogin(w, r)
+		return
+	}
+	if r.URL.Path == "/logout" {
+		handleLogout(w, r)
+		return
+	}
+	if !authRequired(w, r) {
 		return
 	}
 
@@ -885,16 +911,14 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := r.URL.Query()
-	forward := params.Get("forward")
-	requestPath := strings.TrimPrefix(r.URL.Path, "/")
-	if forward == "" && strings.HasPrefix(requestPath, "statics/") && !strings.Contains(requestPath, "..") {
-		fileContent, err := readUIFile(requestPath)
+	requestPath := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
+	if safePath, ok := safeStaticPath(requestPath); ok {
+		fileContent, err := readUIFile(safePath)
 		if err != nil {
-			http.Error(w, "File reading error: "+err.Error(), http.StatusNotFound)
+			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		mimeType := mime.TypeByExtension(filepath.Ext(requestPath))
+		mimeType := mime.TypeByExtension(filepath.Ext(safePath))
 		if mimeType == "" {
 			mimeType = "text/plain"
 		}
@@ -903,37 +927,12 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var fileContent []byte
-	var realPath = "statics/index.html"
-	if forward != "" {
-		if decodedPath, err := base64.StdEncoding.DecodeString(forward); err == nil {
-			realPath = string(decodedPath)
-			realPath = "statics/" + realPath
-			fileContent, err = readUIFile(realPath)
-			if err != nil {
-				http.Error(w, "File reading error: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			http.Error(w, "Base64 decode error: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-	} else {
-		var err error
-		fileContent, err = readUIFile("statics/index.html")
-		if err != nil {
-			http.Error(w, "File reading error: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+	fileContent, err := readUIFile("statics/index.html")
+	if err != nil {
+		http.Error(w, "File reading error: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
-	ext := filepath.Ext(realPath)
-
-	mimeType := mime.TypeByExtension(ext)
-	if mimeType == "" {
-		mimeType = "text/plain"
-	}
-
-	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(fileContent)
 }
 
